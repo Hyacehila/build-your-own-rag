@@ -1,0 +1,13 @@
+* text=auto eol=lf
+*.md text eol=lf
+LICENSE text eol=lf
+LICENSE-DOCS text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.parquet binary

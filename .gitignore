@@ -1,0 +1,51 @@
+# Local credentials; keep sanitized configuration examples trackable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+credentials.json
+service-account*.json
+.secrets/
+secrets/
+
+# Python environments and caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Package output and local tooling.
+node_modules/
+build/
+dist/
+.cache/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+
+# Generated RAG artifacts. Published datasets belong under datasets/<slug>/data/.
+.local/
+.chroma/
+.lancedb/
+vector_store/
+vectorstores/
+chroma_db/
+faiss_index/
+*.faiss
+model_weights/
+checkpoints/
+*.safetensors
+*.gguf
+outputs/
+runs/
