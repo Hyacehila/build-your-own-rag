@@ -51,8 +51,8 @@ None published yet.
 
 ## Examples and data
 
-- [Complete examples](examples/README.md) — none published yet; organizational guidance is available in Chinese.
-- [Datasets](datasets/README.md) — none published yet; distribution guidance is available in Chinese.
+- [Complete examples](examples/README.md): the [structured document facts example](examples/structured-document-facts/README.md) demonstrates Markdown conversion, structure preservation, and version-bound node reads (guide in Chinese).
+- [Datasets](datasets/README.md): no standalone datasets published yet; the example includes an original fictional teaching fixture.
 
 ## Contributing
 

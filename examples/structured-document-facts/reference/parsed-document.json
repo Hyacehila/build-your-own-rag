@@ -1,0 +1,774 @@
+{
+  "body": {
+    "children": [
+      {
+        "$ref": "#/texts/0"
+      },
+      {
+        "$ref": "#/texts/1"
+      },
+      {
+        "$ref": "#/texts/2"
+      },
+      {
+        "$ref": "#/texts/3"
+      },
+      {
+        "$ref": "#/texts/4"
+      },
+      {
+        "$ref": "#/texts/5"
+      },
+      {
+        "$ref": "#/groups/0"
+      },
+      {
+        "$ref": "#/groups/1"
+      },
+      {
+        "$ref": "#/tables/0"
+      },
+      {
+        "$ref": "#/pictures/0"
+      },
+      {
+        "$ref": "#/texts/8"
+      },
+      {
+        "$ref": "#/texts/9"
+      },
+      {
+        "$ref": "#/texts/10"
+      },
+      {
+        "$ref": "#/texts/11"
+      },
+      {
+        "$ref": "#/texts/12"
+      },
+      {
+        "$ref": "#/texts/13"
+      },
+      {
+        "$ref": "#/groups/2"
+      }
+    ],
+    "content_layer": "body",
+    "label": "unspecified",
+    "meta": null,
+    "name": "_root_",
+    "parent": null,
+    "self_ref": "#/body"
+  },
+  "form_items": [],
+  "furniture": {
+    "children": [],
+    "content_layer": "furniture",
+    "label": "unspecified",
+    "meta": null,
+    "name": "_root_",
+    "parent": null,
+    "self_ref": "#/furniture"
+  },
+  "groups": [
+    {
+      "children": [
+        {
+          "$ref": "#/texts/6"
+        },
+        {
+          "$ref": "#/texts/7"
+        }
+      ],
+      "content_layer": "body",
+      "label": "list",
+      "meta": null,
+      "name": "list",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "self_ref": "#/groups/0"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "label": "inline",
+      "meta": null,
+      "name": "group",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "self_ref": "#/groups/1"
+    },
+    {
+      "children": [
+        {
+          "$ref": "#/texts/14"
+        },
+        {
+          "$ref": "#/texts/15"
+        }
+      ],
+      "content_layer": "body",
+      "label": "list",
+      "meta": null,
+      "name": "list",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "self_ref": "#/groups/2"
+    }
+  ],
+  "key_value_items": [],
+  "name": "product-review",
+  "origin": {
+    "binary_hash": 4388746422493306647,
+    "filename": "product-review.md",
+    "mimetype": "text/markdown",
+    "uri": null
+  },
+  "pages": {},
+  "pictures": [
+    {
+      "annotations": [],
+      "captions": [],
+      "children": [],
+      "content_layer": "body",
+      "footnotes": [],
+      "image": null,
+      "label": "picture",
+      "meta": null,
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "references": [],
+      "self_ref": "#/pictures/0"
+    }
+  ],
+  "schema_name": "DoclingDocument",
+  "tables": [
+    {
+      "annotations": [],
+      "captions": [],
+      "children": [],
+      "content_layer": "body",
+      "data": {
+        "grid": [
+          [
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": true,
+              "end_col_offset_idx": 1,
+              "end_row_offset_idx": 1,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 0,
+              "start_row_offset_idx": 0,
+              "text": "指标"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": true,
+              "end_col_offset_idx": 2,
+              "end_row_offset_idx": 1,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 1,
+              "start_row_offset_idx": 0,
+              "text": "调整前"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": true,
+              "end_col_offset_idx": 3,
+              "end_row_offset_idx": 1,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 2,
+              "start_row_offset_idx": 0,
+              "text": "调整后"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": true,
+              "end_col_offset_idx": 4,
+              "end_row_offset_idx": 1,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 3,
+              "start_row_offset_idx": 0,
+              "text": "统计口径"
+            }
+          ],
+          [
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 0,
+              "start_row_offset_idx": 1,
+              "text": "邀请完成率"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 2,
+              "end_row_offset_idx": 2,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 1,
+              "start_row_offset_idx": 1,
+              "text": "40%"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 3,
+              "end_row_offset_idx": 2,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 2,
+              "start_row_offset_idx": 1,
+              "text": "55%"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 4,
+              "end_row_offset_idx": 2,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 3,
+              "start_row_offset_idx": 1,
+              "text": "新团队在 7 天内完成首次邀请"
+            }
+          ],
+          [
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 1,
+              "end_row_offset_idx": 3,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 0,
+              "start_row_offset_idx": 2,
+              "text": "支持工单数"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 1,
+              "start_row_offset_idx": 2,
+              "text": "12"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 3,
+              "end_row_offset_idx": 3,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 2,
+              "start_row_offset_idx": 2,
+              "text": "9"
+            },
+            {
+              "bbox": null,
+              "col_span": 1,
+              "column_header": false,
+              "end_col_offset_idx": 4,
+              "end_row_offset_idx": 3,
+              "fillable": false,
+              "row_header": false,
+              "row_section": false,
+              "row_span": 1,
+              "start_col_offset_idx": 3,
+              "start_row_offset_idx": 2,
+              "text": "与首次邀请相关的工单"
+            }
+          ]
+        ],
+        "num_cols": 4,
+        "num_rows": 3,
+        "orientation": "rot_0",
+        "table_cells": [
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": true,
+            "end_col_offset_idx": 1,
+            "end_row_offset_idx": 1,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 0,
+            "start_row_offset_idx": 0,
+            "text": "指标"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": true,
+            "end_col_offset_idx": 2,
+            "end_row_offset_idx": 1,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 1,
+            "start_row_offset_idx": 0,
+            "text": "调整前"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": true,
+            "end_col_offset_idx": 3,
+            "end_row_offset_idx": 1,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 2,
+            "start_row_offset_idx": 0,
+            "text": "调整后"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": true,
+            "end_col_offset_idx": 4,
+            "end_row_offset_idx": 1,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 3,
+            "start_row_offset_idx": 0,
+            "text": "统计口径"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 1,
+            "end_row_offset_idx": 2,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 0,
+            "start_row_offset_idx": 1,
+            "text": "邀请完成率"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 2,
+            "end_row_offset_idx": 2,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 1,
+            "start_row_offset_idx": 1,
+            "text": "40%"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 3,
+            "end_row_offset_idx": 2,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 2,
+            "start_row_offset_idx": 1,
+            "text": "55%"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 4,
+            "end_row_offset_idx": 2,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 3,
+            "start_row_offset_idx": 1,
+            "text": "新团队在 7 天内完成首次邀请"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 1,
+            "end_row_offset_idx": 3,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 0,
+            "start_row_offset_idx": 2,
+            "text": "支持工单数"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 2,
+            "end_row_offset_idx": 3,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 1,
+            "start_row_offset_idx": 2,
+            "text": "12"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 3,
+            "end_row_offset_idx": 3,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 2,
+            "start_row_offset_idx": 2,
+            "text": "9"
+          },
+          {
+            "bbox": null,
+            "col_span": 1,
+            "column_header": false,
+            "end_col_offset_idx": 4,
+            "end_row_offset_idx": 3,
+            "fillable": false,
+            "row_header": false,
+            "row_section": false,
+            "row_span": 1,
+            "start_col_offset_idx": 3,
+            "start_row_offset_idx": 2,
+            "text": "与首次邀请相关的工单"
+          }
+        ]
+      },
+      "footnotes": [],
+      "image": null,
+      "label": "table",
+      "meta": null,
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "references": [],
+      "self_ref": "#/tables/0"
+    }
+  ],
+  "texts": [
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "title",
+      "meta": null,
+      "orig": "星舟协作：邀请流程复盘",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/0",
+      "text": "星舟协作：邀请流程复盘"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "text",
+      "meta": null,
+      "orig": "这是一份为教程原创的虚构文档。产品、实验、日期和数值均为演示用途，不代表真实业务结果。",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/1",
+      "text": "这是一份为教程原创的虚构文档。产品、实验、日期和数值均为演示用途，不代表真实业务结果。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "section_header",
+      "level": 1,
+      "meta": null,
+      "orig": "新团队邀请实验",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/2",
+      "text": "新团队邀请实验"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "text",
+      "meta": null,
+      "orig": "本轮观察对象是首次创建工作区的新团队。实验只调整邀请入口，不改变成员权限。",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/3",
+      "text": "本轮观察对象是首次创建工作区的新团队。实验只调整邀请入口，不改变成员权限。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "section_header",
+      "level": 2,
+      "meta": null,
+      "orig": "观察结果",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/4",
+      "text": "观察结果"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "text",
+      "meta": null,
+      "orig": "邀请完成率提高了，但这不能说明所有用户的长期留存都会改善。",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/5",
+      "text": "邀请完成率提高了，但这不能说明所有用户的长期留存都会改善。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "enumerated": false,
+      "formatting": null,
+      "hyperlink": null,
+      "label": "list_item",
+      "marker": "",
+      "meta": null,
+      "orig": "邀请入口放在工作区创建后的页面。",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "prov": [],
+      "self_ref": "#/texts/6",
+      "text": "邀请入口放在工作区创建后的页面。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "enumerated": false,
+      "formatting": null,
+      "hyperlink": null,
+      "label": "list_item",
+      "marker": "",
+      "meta": null,
+      "orig": "团队成员接受邀请后，才计为一次完成。",
+      "parent": {
+        "$ref": "#/groups/0"
+      },
+      "prov": [],
+      "self_ref": "#/texts/7",
+      "text": "团队成员接受邀请后，才计为一次完成。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "text",
+      "meta": null,
+      "orig": "图 1：虚构的新团队邀请路径，创建工作区后进入邀请页面。",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/8",
+      "text": "图 1：虚构的新团队邀请路径，创建工作区后进入邀请页面。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "text",
+      "meta": null,
+      "orig": "图 1 的路径只适用于新团队；现有团队使用原有入口。",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/9",
+      "text": "图 1 的路径只适用于新团队；现有团队使用原有入口。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "section_header",
+      "level": 1,
+      "meta": null,
+      "orig": "现有团队权限检查",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/10",
+      "text": "现有团队权限检查"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "text",
+      "meta": null,
+      "orig": "本轮没有调整现有团队的权限规则。现有团队不属于上面的邀请实验样本。",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/11",
+      "text": "本轮没有调整现有团队的权限规则。现有团队不属于上面的邀请实验样本。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "section_header",
+      "level": 2,
+      "meta": null,
+      "orig": "观察结果",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/12",
+      "text": "观察结果"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "formatting": null,
+      "hyperlink": null,
+      "label": "text",
+      "meta": null,
+      "orig": "管理员仍然需要确认受邀成员的角色。不能把新团队实验的数值用于描述现有团队。",
+      "parent": {
+        "$ref": "#/body"
+      },
+      "prov": [],
+      "self_ref": "#/texts/13",
+      "text": "管理员仍然需要确认受邀成员的角色。不能把新团队实验的数值用于描述现有团队。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "enumerated": false,
+      "formatting": null,
+      "hyperlink": null,
+      "label": "list_item",
+      "marker": "",
+      "meta": null,
+      "orig": "普通成员不能替其他成员修改角色。",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "prov": [],
+      "self_ref": "#/texts/14",
+      "text": "普通成员不能替其他成员修改角色。"
+    },
+    {
+      "children": [],
+      "content_layer": "body",
+      "enumerated": false,
+      "formatting": null,
+      "hyperlink": null,
+      "label": "list_item",
+      "marker": "",
+      "meta": null,
+      "orig": "权限问题需要单独检查，不能从邀请完成率推断。",
+      "parent": {
+        "$ref": "#/groups/2"
+      },
+      "prov": [],
+      "self_ref": "#/texts/15",
+      "text": "权限问题需要单独检查，不能从邀请完成率推断。"
+    }
+  ],
+  "version": "1.10.0"
+}

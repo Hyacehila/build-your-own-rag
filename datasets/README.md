@@ -8,7 +8,13 @@
 
 ## 已发布数据集
 
-尚未发布。
+尚未发布独立数据集。
+
+## 示例中的教学夹具
+
+[结构化文档示例](../examples/structured-document-facts/README.md)附有[原创虚构的产品复盘文档](../examples/structured-document-facts/fixtures/README.md)，仅用于展示数据格式和测试行为，不代表真实业务数据。
+
+本例不分发 Lenny Compass 的真实语料、增强全文、chunks、索引或向量。此类仅服务于单个示例的原创教学夹具就近放在 `examples/`，在夹具说明中明确其来源、用途与许可；可复用的独立数据集仍遵循本页的分发规则。
 
 ## 目录约定
 

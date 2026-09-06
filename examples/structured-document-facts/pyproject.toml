@@ -1,0 +1,23 @@
+[project]
+name = "structured-document-facts"
+version = "0.1.0"
+description = "A Markdown-to-Docling fact layer with version-bound source reads"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "docling-slim[format-markdown]==2.120.1",
+  "docling-core==2.91.0",
+  "markdown-it-py>=3,<5",
+  # DocumentConverter imports PDF/reading-order modules even for Markdown.
+  "docling-parse==7.13.0",
+  "pypdfium2==5.13.0",
+  "rtree==1.4.1",
+  "scipy==1.17.1",
+  "docling-ibm-models==3.14.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

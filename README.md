@@ -51,8 +51,8 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 
 ## 示例与数据
 
-- [成品示例](examples/README.md)：尚未发布，入口包含示例组织约定。
-- [数据集](datasets/README.md)：尚未发布，入口包含数据分发规则。
+- [成品示例](examples/README.md)：已提供[结构化文档事实层示例](examples/structured-document-facts/README.md)，演示 Markdown 转换、结构保存与节点回读。
+- [数据集](datasets/README.md)：尚未发布独立数据集；示例自带原创虚构教学夹具。
 
 ## 参与贡献
 
