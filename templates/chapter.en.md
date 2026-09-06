@@ -1,6 +1,6 @@
 <!-- Writing template, not a published chapter. Copy to tutorials/main/<id-topic>/README.en.md. -->
 <!-- Replace bracketed prompts and plain-text navigation with valid links in the destination directory. -->
-<!-- Keep implementation code out of tutorial prose. Put code, dependencies, and run commands in the linked example. -->
+<!-- Short JSON excerpts and document trees may illustrate data structures. Check them against the full object and state omissions. Put implementation code, dependencies, and run commands in the linked example. -->
 
 # [Number] · [Chapter title]
 
@@ -13,7 +13,7 @@
 - Last synchronized: [YYYY-MM-DD]
 - Translation status: [In sync / Translation needs update]
 
-Previous: [Title and path, or None] · Contents: [Root English README path] · Next: [Title and path, or None]
+Previous: [Title and path, or None] · Contents: [Root English README path] · Next: [Title and path, or Not published yet]
 
 ## Scenario and problem
 
@@ -29,7 +29,7 @@ Previous: [Title and path, or None] · Contents: [Root English README path] · N
 
 ## [Section title]
 
-[Explain the principles and approach through prose, diagrams, or tables, independently of a programming language. Add sections as needed.]
+[Explain the principles and approach through prose, diagrams, tables, short JSON excerpts, or document trees, independently of a programming language. Link excerpts to the full object and state omissions. Add sections as needed.]
 
 ## Design choices and tradeoffs
 
@@ -40,7 +40,7 @@ Previous: [Title and path, or None] · Contents: [Root English README path] · N
 ### Examples and data
 
 - Reference implementation: [Actual project title and relative path under examples/]
-- Input data: [Actual dataset guide title and relative path under datasets/, or state not needed]
+- Input data: [Actual guide and relative path under datasets/ or the example's original teaching fixtures, or state not needed]
 
 ### Practice task
 

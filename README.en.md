@@ -24,7 +24,7 @@ The focus is practical. The tutorial will not start with the history of RAG or e
 
 This tutorial is for readers with programming experience who want to understand and build RAG applications. Examples will primarily use Python, so being able to read basic Python code, install dependencies, and use a terminal is helpful. You should also know how to use a coding agent to work through development problems.
 
-You can follow the tutorial even if Python is not your main language. Tutorial prose will contain no implementation code; it will discuss technical problems and solutions that apply across languages. Implementations belong in the [example projects](examples/README.md). You can ask a coding agent to help adapt an example to your preferred language, then verify it yourself.
+You can follow the tutorial even if Python is not your main language. Tutorial prose discusses technical problems and solutions that apply across languages, using short JSON excerpts or document trees where they help explain data structures. Implementation code and run commands belong in the [example projects](examples/README.md). You can ask a coding agent to help adapt an example to your preferred language, then verify it yourself.
 
 Each chapter will state any additional prerequisites. Most can be learned as you encounter them. If a concept is unfamiliar, you can also ask ChatGPT questions as you read to help you understand it.
 
@@ -39,7 +39,9 @@ Chinese is the primary writing language. English translations are added chapter 
 
 ## Main tutorials
 
-None published yet.
+The main sequence starts with data cleaning. Chapter one first considers its desired output: a document format that preserves sources and structure for later chunking, indexing, and retrieval.
+
+- [001 · What makes a good document format for a RAG fact layer?](tutorials/main/001-document-format/README.md) — **Chinese only**
 
 [Main index and chapter contribution notes](tutorials/main/README.md) (in Chinese)
 

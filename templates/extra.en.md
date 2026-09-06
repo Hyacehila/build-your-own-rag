@@ -1,6 +1,6 @@
 <!-- Writing template, not a published extra. Copy to tutorials/extras/<ex-id-topic>/README.en.md. -->
 <!-- Replace bracketed prompts and plain-text navigation with valid links in the destination directory. -->
-<!-- Keep code and run instructions in linked examples. An extra may be unrelated to the main tutorials. -->
+<!-- Short JSON excerpts and document trees may illustrate data structures. Check them against the full object and state omissions. Keep implementation code and run instructions in linked examples. An extra may be unrelated to the main tutorials. -->
 
 # [Extra number] · [Title]
 
@@ -31,7 +31,7 @@ Contents: [Root English README path]
 
 ## [Section title]
 
-[Explore the question, explaining the evidence, conditions, and relevant tradeoffs. Use prose, diagrams, or tables independently of a programming language. Add sections as needed.]
+[Explore the question, explaining the evidence, conditions, and relevant tradeoffs. Use prose, diagrams, tables, short JSON excerpts, or document trees independently of a programming language. Link excerpts to the full object and state omissions. Add sections as needed.]
 
 ## Practice or experiment
 
