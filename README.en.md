@@ -43,6 +43,7 @@ The main sequence starts with data cleaning and gradually expands to retrieval, 
 
 - [001 · What makes a good document format for a RAG fact layer?](tutorials/main/001-document-format.md) — **Chinese only**
 - [002 · From different file formats to DoclingDocument](tutorials/main/002-docling-document.md) — **Chinese only**
+- [003 · OCR and document parsing: choices and tradeoffs](tutorials/main/003-ocr-and-parsing.md) — **Chinese only**
 
 ## Extra chapters
 

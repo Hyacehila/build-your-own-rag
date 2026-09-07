@@ -43,6 +43,7 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 
 - [001 · 什么样的数据格式，适合成为 RAG 的事实层？](tutorials/main/001-document-format.md)
 - [002 · 从不同文件格式到 DoclingDocument](tutorials/main/002-docling-document.md)
+- [003 · OCR 与文档解析：一些选择与取舍](tutorials/main/003-ocr-and-parsing.md)
 
 ## 特别加更目录
 
