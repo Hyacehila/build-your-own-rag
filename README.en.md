@@ -4,7 +4,7 @@
 
 Build Your Own RAG is a tutorial shaped by my own approach to building RAG systems. It is for readers with programming experience and favors direct implementation. Starting from real scenarios, it explores the technical choices and tradeoffs involved in solving a problem. I want to explain both how to build something and why to build it that way.
 
-[Project philosophy](#project-philosophy) · [Who this is for](#who-this-is-for) · [Content overview](#content-overview) · [Main tutorials](#main-tutorials) · [Extra chapters](#extra-chapters) · [Examples and data](#examples-and-data) · [Contributing](#contributing) · [License](#license)
+[Project philosophy](#project-philosophy) · [Who this is for](#who-this-is-for) · [Content overview](#content-overview) · [Main tutorials](#main-tutorials) · [Extra chapters](#extra-chapters) · [Examples and data](#examples-and-data) · [Personal reflections](#personal-reflections) · [Contributing](#contributing) · [License](#license)
 
 ## Project philosophy
 
@@ -39,7 +39,7 @@ Chinese is the primary writing language. English translations are added chapter 
 
 ## Main tutorials
 
-The main sequence starts with data cleaning. Chapter one first considers its desired output: a document format that preserves sources and structure for later chunking, indexing, and retrieval.
+The main sequence starts with data cleaning and gradually expands to retrieval, generation, and newer approaches I find interesting, such as structured retrieval, knowledge graphs, and knowledge systems like LLM Wiki. We will spend considerable time on data cleaning and storage; these discussions will often lay the groundwork for later chapters.
 
 - [001 · What makes a good document format for a RAG fact layer?](tutorials/main/001-document-format.md) — **Chinese only**
 
@@ -51,6 +51,14 @@ None published yet.
 
 - [Complete examples](examples/README.md): the [structured document facts example](examples/structured-document-facts/README.md) demonstrates Markdown conversion, structure preservation, and version-bound node reads (guide in Chinese).
 - [Datasets](datasets/README.md): no standalone datasets published yet; the example includes an original fictional teaching fixture.
+
+## Personal reflections
+
+When I first started studying AI agents, I was not particularly enthusiastic about RAG. Few-shot prompting had value initially, but as models gained richer knowledge and became better aligned with human intent, I thought those prompts might shift from guiding models toward a solution to constraining their capabilities. At the time, I believed the future would be RAG-free and that we should study structures that address real engineering problems.
+
+My thinking has changed recently. Through encountering more problems in real production environments and talking with others, I have come to feel that RAG may deserve study in its own right. Projects such as LLM Wiki have also prompted us to think about building knowledge systems, in which traditional RAG is an essential part.
+
+Training can give models knowledge and align them with human intent, but it cannot teach them all the varied habits of the real world. How we collect and clean data, store knowledge, and improve systems therefore deserves dedicated study. We may still be building a QA bot, but the goal is to build knowledge systems that help AI understand the complexities of the real world.
 
 ## Contributing
 
