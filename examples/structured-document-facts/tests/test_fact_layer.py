@@ -45,6 +45,8 @@ def test_roundtrip_and_original_source(bundle):
         json_bytes(document.model_dump(mode="json", by_alias=True))
     ) == document
     assert manifest.parser_versions == {"docling-slim": "2.120.1", "docling-core": "2.91.0"}
+    assert manifest.builder_version == "0.1.1"
+    assert manifest.structure_policy == "docling-core._hierarchize"
     assert document.pages == {}
     assert all(not item.prov for item in document.texts)
 
@@ -130,6 +132,16 @@ def test_missing_manifest_is_an_incomplete_bundle(bundle):
     (bundle / "manifest.json").unlink()
     with pytest.raises(FactError, match="INVALID_BUNDLE"):
         load_bundle(bundle)
+
+
+def test_previous_builder_manifest_remains_readable(bundle):
+    path = bundle / "manifest.json"
+    manifest = json.loads(path.read_bytes())
+    manifest.update(builder_version="0.1.0", structure_policy="nest-root-items-by-existing-heading-level")
+    path.write_bytes(json_bytes(manifest))
+    loaded, _ = load_bundle(bundle)
+    assert loaded.builder_version == "0.1.0"
+    assert read_node(bundle, locator_for(bundle, "#/tables/0"))["node"]["self_ref"] == "#/tables/0"
 
 
 def test_broken_parent_and_cycle_are_rejected(bundle):

@@ -5,7 +5,7 @@
 以下文件由本例的原创虚构输入实际生成，用于在 GitHub 上阅读和核对数据结构：
 
 - [parsed-document.json](parsed-document.json)：Markdown 后端输出，尚未应用本例的规则适配。
-- [document.json](document.json)：按已有标题级别组织章节、保留图片引用及图注后的完整文档对象。
+- [document.json](document.json)：保留图片引用及图注，并调用 Docling Core 的 `_hierarchize()` 组织章节后的完整文档对象。
 - [structure.txt](structure.txt)：适配后文档的正文树，包含实际节点引用。
 
 两份 JSON 都是 DoclingDocument。前者已有标题级别和阅读顺序，后者另外保存了显式章节父子关系；不是从无结构文本升级成另一种格式。查看两份文件中的 `#/tables/0`：其 `parent` 分别为 `#/body` 与 `#/texts/4`。处理步骤与字段对照见[示例说明](../README.md#三个阶段分别看什么)。

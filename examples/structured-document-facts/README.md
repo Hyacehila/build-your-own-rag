@@ -12,7 +12,7 @@
 原始 Markdown 字节
   → SimplePipeline + Markdown 后端
   → 适配前的 DoclingDocument（保留作诊断参考）
-  → 按已有标题级别组织层级，显式保存图片引用和图注
+  → 显式保存图片引用和图注，调用 Docling Core 的 _hierarchize()
   → 文档 JSON + 来源清单 + 原始快照
   → 校验文档版本，按节点引用读取内容和父级路径
 ```
@@ -21,7 +21,7 @@
 
 Markdown 后端生成的 `parsed-document.json` 已经是完整的 DoclingDocument。固定版本在这份输入中保存了标题级别和阅读顺序，但章节标题、段落和表格仍是正文根节点的直接子节点。[后端源码](https://github.com/docling-project/docling/blob/v2.120.1/docling/backend/md_backend.py#L342-L344)注明，章节内容的父节点跟踪尚未实现；这与标题识别错误是不同问题。
 
-本例希望从任意正文节点直接沿 `parent` 回读章节路径，因此在保存最终的 `document.json` 前调用 `nest_sections`。它按既有标题级别维护一个栈，将根节点下的内容组织到对应标题下，保留原有文字、节点引用和阅读顺序，不生成新标题。已有列表保留内部关系。这项适配只针对本例的 Markdown 转换路径，不是任意文档的层级修复器。
+对于需要直接沿 `parent` 回读章节路径的场景，这个版本的 Markdown 默认转换还缺少章节树的整理步骤。本例在保存最终的 `document.json` 前直接调用 `document._hierarchize()`，复用 Docling Core 根据已有标题级别调整父子关系的实现。它原地修改文档，不返回一个新的对象。本例验证了原有文字、标题级别、节点引用、阅读顺序和列表内部关系均得到保留；它不会补写标题或修正错误的标题级别。
 
 ### 三个阶段分别看什么
 
@@ -35,11 +35,11 @@ Markdown 后端生成的 `parsed-document.json` 已经是完整的 DoclingDocume
 
 官方 [HierarchicalChunker](https://docling-project.github.io/docling/concepts/chunking/#hierarchical-chunker)还有另一条使用路径：遍历标题级别与阅读顺序，把章节路径写进切片的 `meta.headings`。它可以使用本例尚未建立章节树的对象；切片得到标题路径，不代表源对象的 `parent` 被改写。本例选择显式章节树，是为了直接做父级回读，不是运行官方切片器的前提。
 
-固定版本的 Docling Core 也包含内部方法 `_hierarchize()`，对本例能得到相同的表格父节点。本例不调用该内部接口，而保留自己的小范围规则。只因更换方案而得到相同的表格父节点，不能证明两种算法对任意输入都等价。
+`_hierarchize()` 是内部方法，因此本例锁定 `docling-core==2.91.0`，调用后检查正文树、序列化往返和版本绑定的回读。升级依赖时须重新验证这些行为，不能假设内部接口长期兼容。构建版本从 `0.1.1` 起使用此方法，来源清单的 `structure_policy` 为 `docling-core._hierarchize`；旧版 `0.1.0` 快照仍可读取，读取时不会重新整理或改写旧对象。
 
 图片处理也有一条显式规则：用 Markdown 图片地址创建引用，用其替代文字作为本例图注。若后端已经将相同替代文字产出为图片后的文本节点，就复用该节点并标为 `caption`，不再复制一遍。实际图片未被读取，因此图像尺寸为 `0 × 0`、DPI 为构造引用所需的占位值；这些值不代表测量结果。图片与图注用引用关联，不要求图注一定是图片的子节点。
 
-来源清单记录这两条规则。它们是确定性适配，与模型补写标题不同。本例不执行模型增强。
+来源清单记录图片映射规则、层级整理方法与解析器版本。这些处理与模型补写标题不同，本例不执行模型增强。
 
 ## 环境与安装
 
@@ -111,7 +111,7 @@ uv run --frozen pytest -q
 
 2026-09-07 在 Windows、Python 3.11.14 上完成了构建、验证和回读。测试在禁止网络连接的条件下运行，检查标题归属、表格、列表、图片引用、原始字节、序列化往返和失效定位等行为，具体断言见[测试文件](tests/test_fact_layer.py)。
 
-同日另在临时 uv 环境补充 `docling-core[chunking]==2.91.0`，对两份参考对象执行官方 HierarchicalChunker。禁止网络连接后，二者的表格切片均得到 `meta.headings`：`["星舟协作：邀请流程复盘", "新团队邀请实验", "观察结果"]`，源对象的表格父节点保持原样。对原始对象的副本调用内部 `_hierarchize()`，表格父节点变为 `#/texts/4`。这些是解释处理方式的对照验证；默认示例不安装 chunking 扩展，也不执行切片。
+同日另在临时 uv 环境补充 `docling-core[chunking]==2.91.0`，对两份参考对象执行官方 HierarchicalChunker。禁止网络连接后，二者的表格切片均得到 `meta.headings`：`["星舟协作：邀请流程复盘", "新团队邀请实验", "观察结果"]`，源对象的表格父节点保持原样。随后将默认构建切换为直接调用 `_hierarchize()`，19 项测试通过，两份参考 JSON 与结构树均与原先的参考文件逐字节一致。默认示例不安装 chunking 扩展，也不执行切片。
 
 | 错误 | 含义 |
 | --- | --- |
@@ -127,6 +127,6 @@ uv run --frozen pytest -q
 
 本例参考作者的私有项目 Lenny Compass，提交为 `09ba9e449712f9a1d5a899584e2949d15ef9c321`。主要参考 `pipelines/fact_build/src/fact_build/builder.py` 的 Markdown 转换、图片引用、JSON 往返及哈希逻辑，以及 `contracts/src/ai_pm_contracts/facts.py` 的版本绑定定位约定。
 
-代码已整理为独立示例；标题层级适配是本例针对实际转换结果增加的规则。没有迁入语料目录、增强全文、chunks、向量或索引，也没有迁入源项目的批量构建、隔离区、切片、检索与回答流程。学习本例不需要访问私有仓库。
+代码已整理为独立示例；在 Markdown 转换后调用 Docling Core 的 `_hierarchize()`，是本例补充的处理步骤。没有迁入语料目录、增强全文、chunks、向量或索引，也没有迁入源项目的批量构建、隔离区、切片、检索与回答流程。学习本例不需要访问私有仓库。
 
 原创代码采用 [MIT](../../LICENSE)，原创说明和教学夹具采用 [CC BY 4.0](../../LICENSE-DOCS)。依赖库保留各自许可；Docling 与 Docling Core 的来源见[项目主页](https://github.com/docling-project/docling)和[核心类型库](https://github.com/docling-project/docling-core)。

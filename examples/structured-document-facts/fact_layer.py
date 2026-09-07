@@ -20,7 +20,7 @@ from docling.datamodel.base_models import ConversionStatus, DocumentStream, Inpu
 from docling.document_converter import DocumentConverter, MarkdownFormatOption
 from docling.pipeline.simple_pipeline import SimplePipeline
 from docling_core.types.doc import (
-    DocItemLabel, DoclingDocument, ImageRef, RefItem, SectionHeaderItem, Size, TitleItem,
+    DocItemLabel, DoclingDocument, ImageRef, RefItem, Size,
 )
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -34,15 +34,16 @@ class Manifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal["1"] = "1"
-    builder_version: Literal["0.1.0"] = "0.1.0"
+    builder_version: Literal["0.1.0", "0.1.1"] = "0.1.1"
     document_id: str = Field(min_length=1)
     source_name: str
     source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     document_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     parser_versions: dict[str, str]
-    structure_policy: Literal["nest-root-items-by-existing-heading-level"] = (
-        "nest-root-items-by-existing-heading-level"
-    )
+    # Retain the old policy value so existing snapshots can still be read.
+    structure_policy: Literal[
+        "nest-root-items-by-existing-heading-level", "docling-core._hierarchize",
+    ] = "docling-core._hierarchize"
     image_policy: Literal["references-only; markdown-alt-as-caption"] = (
         "references-only; markdown-alt-as-caption"
     )
@@ -139,29 +140,6 @@ def preserve_image_references(document: DoclingDocument, markdown: str) -> None:
             picture.captions.append(caption.get_ref())
 
 
-def nest_sections(document: DoclingDocument) -> None:
-    """Organize root siblings by explicit heading levels, without inventing text.
-
-    Existing list/table/picture internals remain intact. This small adapter is
-    for the pinned Markdown backend, not a general hierarchy recovery algorithm.
-    """
-    roots = [resolve_ref(document, ref.cref) for ref in document.body.children]
-    document.body.children = []
-    stack = [(-1, document.body)]
-    for item in roots:
-        level = 0 if isinstance(item, TitleItem) else (
-            item.level if isinstance(item, SectionHeaderItem) else None
-        )
-        if level is not None:
-            while len(stack) > 1 and stack[-1][0] >= level:
-                stack.pop()
-        parent = stack[-1][1]
-        item.parent = parent.get_ref()
-        parent.children.append(item.get_ref())
-        if level is not None:
-            stack.append((level, item))
-
-
 def convert_markdown(source: bytes, name: str) -> DoclingDocument:
     if Path(name).suffix.lower() != ".md" or not source.strip():
         raise FactError("INVALID_SOURCE: expected a non-empty .md file")
@@ -206,7 +184,10 @@ def build_bundle(source_path: Path, output: Path, document_id: str) -> Manifest:
     document = convert_markdown(source, source_path.name)
     parsed_bytes = json_bytes(document.model_dump(mode="json", by_alias=True))
     preserve_image_references(document, source.decode("utf-8"))
-    nest_sections(document)
+    # The pinned Markdown backend leaves section contents as root siblings.
+    # Use Docling Core's existing in-place hierarchy pass. This is an internal
+    # API: keep the dependency pinned and verify structure before upgrading.
+    document._hierarchize()
     list(walk_body(document))
     serialized = json_bytes(document.model_dump(mode="json", by_alias=True))
     if DoclingDocument.model_validate_json(serialized) != document:
