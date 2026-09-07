@@ -19,7 +19,23 @@
 
 [fact_layer.py](fact_layer.py) 实现转换、适配、存储和回读，[demo.py](demo.py) 提供命令行入口。本例没有切片器、Embedding、查询服务或模型调用。
 
-固定版本的 Markdown 后端在这份输入中保留了标题级别，但章节标题、段落和表格仍是正文根节点的直接子节点。`nest_sections` 按既有标题级别维护一个栈，将这些节点组织到对应标题下。它保留原有文字和阅读顺序，不生成新标题，也不宣称能恢复任意文档的语义结构。
+Markdown 后端生成的 `parsed-document.json` 已经是完整的 DoclingDocument。固定版本在这份输入中保存了标题级别和阅读顺序，但章节标题、段落和表格仍是正文根节点的直接子节点。[后端源码](https://github.com/docling-project/docling/blob/v2.120.1/docling/backend/md_backend.py#L342-L344)注明，章节内容的父节点跟踪尚未实现；这与标题识别错误是不同问题。
+
+本例希望从任意正文节点直接沿 `parent` 回读章节路径，因此在保存最终的 `document.json` 前调用 `nest_sections`。它按既有标题级别维护一个栈，将根节点下的内容组织到对应标题下，保留原有文字、节点引用和阅读顺序，不生成新标题。已有列表保留内部关系。这项适配只针对本例的 Markdown 转换路径，不是任意文档的层级修复器。
+
+### 三个阶段分别看什么
+
+| 阶段 | 本例可核对的结果 |
+| --- | --- |
+| Markdown 输入 | `#` 是文档标题，`##` 是“新团队邀请实验”，`###` 是“观察结果”；表格在该小节中 |
+| 后端原始输出 `parsed-document.json` | 对应 `title`、`section_header(level=1)`、`section_header(level=2)`；表格 `#/tables/0` 的 `parent` 为 `#/body` |
+| 整理后输出 `document.json` | 标题文字与级别不变；表格父级链变为 `#/texts/4` → `#/texts/2` → `#/texts/0` → `#/body` |
+
+第三行的节点依次是“观察结果”“新团队邀请实验”、文档标题与正文根节点。用后面的 `demo.py read` 读取表格，会在 `ancestors` 中看到从根到父级的相反顺序。来源清单记录结构整理策略，保存的对象哈希绑定最终 `document.json`。
+
+官方 [HierarchicalChunker](https://docling-project.github.io/docling/concepts/chunking/#hierarchical-chunker)还有另一条使用路径：遍历标题级别与阅读顺序，把章节路径写进切片的 `meta.headings`。它可以使用本例尚未建立章节树的对象；切片得到标题路径，不代表源对象的 `parent` 被改写。本例选择显式章节树，是为了直接做父级回读，不是运行官方切片器的前提。
+
+固定版本的 Docling Core 也包含内部方法 `_hierarchize()`，对本例能得到相同的表格父节点。本例不调用该内部接口，而保留自己的小范围规则。只因更换方案而得到相同的表格父节点，不能证明两种算法对任意输入都等价。
 
 图片处理也有一条显式规则：用 Markdown 图片地址创建引用，用其替代文字作为本例图注。若后端已经将相同替代文字产出为图片后的文本节点，就复用该节点并标为 `caption`，不再复制一遍。实际图片未被读取，因此图像尺寸为 `0 × 0`、DPI 为构造引用所需的占位值；这些值不代表测量结果。图片与图注用引用关联，不要求图注一定是图片的子节点。
 
@@ -94,6 +110,8 @@ uv run --frozen pytest -q
 ```
 
 2026-09-07 在 Windows、Python 3.11.14 上完成了构建、验证和回读。测试在禁止网络连接的条件下运行，检查标题归属、表格、列表、图片引用、原始字节、序列化往返和失效定位等行为，具体断言见[测试文件](tests/test_fact_layer.py)。
+
+同日另在临时 uv 环境补充 `docling-core[chunking]==2.91.0`，对两份参考对象执行官方 HierarchicalChunker。禁止网络连接后，二者的表格切片均得到 `meta.headings`：`["星舟协作：邀请流程复盘", "新团队邀请实验", "观察结果"]`，源对象的表格父节点保持原样。对原始对象的副本调用内部 `_hierarchize()`，表格父节点变为 `#/texts/4`。这些是解释处理方式的对照验证；默认示例不安装 chunking 扩展，也不执行切片。
 
 | 错误 | 含义 |
 | --- | --- |

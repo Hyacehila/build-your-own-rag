@@ -91,11 +91,47 @@ DoclingDocument 是 Docling 提供的统一文档表示。在[官方说明](http
 
 位置字段则要尊重输入本身。PDF 可以有页码和坐标，Markdown、HTML 或 Word 的最终分页未必固定。我们的 Markdown 样例没有可靠页码，所以对象中的 `pages` 和 `prov` 为空。此时可以回到指定版本的结构节点，但不能据此声称能高亮原文某一页，或者精确定位到源文件某一行。
 
-### 能表达层级，不代表解析后已经有层级
+### 从 Markdown 解析结果到本例保存的事实层
 
-这个示例实际跑起来后，出现了一个很好的提醒：固定版本的 Markdown 后端识别了标题与级别，却把标题、段落和表格都放在 `body` 的直接子节点中。列表内部的关系存在，章节归属却没有按我希望的方式直接组织出来。
+这里需要把转换过程讲清楚：**Markdown 后端返回的已经是 DoclingDocument，但本例保存的事实层对象，还经过了一次显式的结构整理。** 两者是同一种数据格式，不是先得到普通文本，再由我们创造一个 DoclingDocument。上面的 JSON 展示的是整理后的对象。
 
-所以示例增加了一条明确的规则：按照已有标题级别，把后续节点组织到对应标题下。同级或更高层级的新标题出现时，结束前一个小节。它没有创造标题，也没有修改正文，只是把输入里已经存在的层级变成可直接遍历的父子关系。对于这份样例，适配后的主要关系如下；为方便阅读，省略了部分正文和容器节点。
+本例固定使用 `docling-slim==2.120.1`、`docling-core==2.91.0`，通过 Markdown 后端和 `SimplePipeline` 转换输入。后端已经识别出标题、段落、列表、表格和图片等元素，也保存了标题级别与阅读顺序。样例中的一级标题成为 `title`，二级和三级标题成为 `section_header`，其 `level` 分别为 1 和 2；数字与 Markdown 的井号数量不是直接相等的。
+
+但在这条转换路径中，后端没有进一步把后续段落、表格等节点挂到所属标题下面。[对应版本的后端源码](https://github.com/docling-project/docling/blob/v2.120.1/docling/backend/md_backend.py#L342-L344)明确注明，Marko 的语法树没有将章节内容作为标题的子节点，这部分父节点跟踪尚未实现。`SimplePipeline` 直接接收后端生成的对象，不会自动补上这一步。因此，不能把“还没有显式章节树”说成“标题层级没有识别出来”，也不能把这个 Markdown 后端的表现推广到所有输入格式。
+
+以第一张表为例，原始转换对象中的主要节点是这样排列的。图中省略了其他节点，剩余节点仍按原有顺序展示：
+
+```text
+body
+├── #/texts/0   title：星舟协作：邀请流程复盘
+├── #/texts/2   section_header，level=1：新团队邀请实验
+├── #/texts/4   section_header，level=2：观察结果
+├── #/tables/0  邀请实验指标表
+├── #/texts/10  section_header，level=1：现有团队权限检查
+└── #/texts/12  section_header，level=2：观察结果
+```
+
+表格的 `parent` 是 `#/body`，所以直接查询父节点得不到章节名。不过，顺着阅读顺序看，表格前最近的二级章节是“新团队邀请实验”，其下最近的小节是“观察结果”。标题级别和顺序足以按章节边界推导出这条路径。这就是同一个对象中“已有层级信息”和“已建立父子关系”的区别。
+
+### 下游如何使用这些结构信息
+
+我查到的官方实现提供了一个具体参照：[HierarchicalChunker](https://docling-project.github.io/docling/concepts/chunking/#hierarchical-chunker)按阅读顺序遍历文档，维护当前各级标题，遇到同级或更高层标题时结束相应范围，再把章节路径写入切片的 `meta.headings`。这里使用标题自身的 `level`，不要求段落的直接父节点必须是标题。官方的 HybridChunker 再在这一结果上处理 token 长度等约束。
+
+对同一份材料，可以根据使用目的选择处理位置：
+
+| 目的 | 处理方式 | 得到什么 |
+| --- | --- | --- |
+| 让切片携带章节上下文 | 在切片时根据标题级别和阅读顺序维护路径，例如官方 HierarchicalChunker | 切片带有 `meta.headings`；源对象不因此自动变成章节树 |
+| 直接沿父级读取章节，或按章节遍历子树 | 在保存前把已有层级组织成显式父子关系，这是本例的选择 | DoclingDocument 本身具有可遍历的章节树 |
+| 输入连标题级别都缺失或错误 | 先恢复并检查标题与级别，再决定如何组织和使用 | 补齐结构信息；不能靠简单挂接父节点解决识别错误 |
+
+例如 PDF 的标题级别推断属于第三种问题，官方另有[标题级别处理说明](https://docling-project.github.io/docling/usage/heading_levels/)。不能把它当成本例 Markdown 输入需要开启的开关。这些是有实现依据的处理路径，并不意味着所有项目都采用同一种做法。
+
+我也对本例的两个对象做了实际核对：直接把未整理的对象交给官方 HierarchicalChunker，表格切片已经得到“星舟协作：邀请流程复盘 → 新团队邀请实验 → 观察结果”这条路径；整理后的对象得到相同路径。所以这里的整理不是让文档第一次具备结构感知切片的能力，而是让事实层支持我们想要的直接父级回读。
+
+### 本例具体怎么处理，结果是什么
+
+我选择在保存事实层之前做这一步。示例按已有标题级别维护当前章节，把后续节点归入对应标题；遇到同级或更高层级的新标题，就结束前面的相应范围。列表等已有容器保留内部关系，不重新创造标题或修改正文。整理后的主要关系如下：
 
 ```text
 星舟协作：邀请流程复盘
@@ -109,7 +145,11 @@ DoclingDocument 是 Docling 提供的统一文档表示。在[官方说明](http
         └── 权限说明与列表
 ```
 
-[适配前的对象](../../examples/structured-document-facts/reference/parsed-document.json)、[适配后的对象](../../examples/structured-document-facts/reference/document.json)和[完整结构树](../../examples/structured-document-facts/reference/structure.txt)都保留在示例中。图片替代文字被用作图注，也是本例显式选择的映射规则，不应该悄悄推广到所有输入。这些小地方正说明，我们需要同时检查数据格式、转换结果和自己的适配逻辑。
+[适配前的对象](../../examples/structured-document-facts/reference/parsed-document.json)保留后端原始结果；[适配后的对象](../../examples/structured-document-facts/reference/document.json)是本例最终保存与回读的事实层，另有[完整结构树](../../examples/structured-document-facts/reference/structure.txt)供核对。两份对象中，表格仍是 `#/tables/0`，但它的父节点由 `#/body` 变为 `#/texts/4`，再向上依次是 `#/texts/2`、`#/texts/0` 和 `#/body`。它属于哪个章节，现在可以直接沿引用读出来。
+
+Docling Core 2.91.0 自身也有内部方法 `_hierarchize()`；对本例的原始对象调用后，同样能把表格挂到“观察结果”下。因此无需把手写逻辑描述成唯一解决办法。本例保留范围较小、可以检查的标题整理规则，避免让运行入口依赖内部接口；它也不承担任意文档的结构修复。
+
+完整流程是“Markdown → 后端生成 DoclingDocument → 整理已有结构并核对 → 保存最终对象与来源清单 → 按版本回读”。来源清单记录整理规则，文档哈希在整理完成后计算。图片替代文字映射为图注是另一个独立规则，不与章节归属混为一谈。我们需要检查的是每一步实际产出的对象，而不只是文件名里有没有 Docling。
 
 ## Lenny Compass 给我的经验
 
@@ -174,7 +214,7 @@ Lenny Compass 是我围绕个人订阅资料做的一个 RAG 项目。这里借�
 - Hyacehila：[《我如何做 RAG：从项目实践到系统方法》](https://hyacehila.github.io/blog/2026/08/18/how-i-build-rag/)，本章相关项目经验的来源。
 - Hyacehila：[《让 OCR 再次伟大》](https://hyacehila.github.io/blog/2026/07/04/make-ocr-great-again/)，关于结构恢复、表示与查询边界的讨论。
 - Docling：[Docling document](https://docling-project.github.io/docling/concepts/docling_document/)，文档对象的官方概念说明。
-- Docling Core：[v2.91.0 文档类型定义](https://github.com/docling-project/docling-core/blob/v2.91.0/docling_core/types/doc/document.py)，本例固定版本的数据结构来源。
+- Docling Core：[文档类型定义](https://github.com/docling-project/docling-core/blob/main/docling_core/types/doc/document.py)与 [HierarchicalChunker 实现](https://github.com/docling-project/docling-core/blob/main/docling_core/transforms/chunker/hierarchical_chunker.py)。链接为上游当前源码，本例实际行为以锁定的 2.91.0 版本及验证结果为准。
 - Lenny Compass 的代码参考版本、抽取范围和新增适配规则见[示例来源说明](../../examples/structured-document-facts/README.md#来源与简化范围)。公开教程不依赖私有仓库访问。
 
 本章为作者基于上述经验重新撰写的教程，原创正文采用 [CC BY 4.0](../../LICENSE-DOCS)；关联示例中的原创代码采用 [MIT](../../LICENSE)。
