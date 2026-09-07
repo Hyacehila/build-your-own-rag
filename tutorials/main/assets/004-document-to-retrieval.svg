@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">从文档到检索资料，再回读原文</title>
+  <desc id="desc">DoclingDocument 保留原文与结构。资料构建阶段依次进行正文切片、图片描述与表格处理，补充上下文与摘要，得到含检索文字和来源关联的检索记录。后续建立索引并查询，命中记录后按来源引用回读 DoclingDocument 中的原文。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 8 4 L 0 8 Z" fill="#536779"/>
+    </marker>
+    <style>
+      text { font-family: "Noto Sans CJK SC", "Microsoft YaHei", "PingFang SC", sans-serif; }
+      .heading { fill: #243746; font-size: 23px; font-weight: 600; }
+      .body { fill: #526474; font-size: 20px; }
+      .label { fill: #526474; font-size: 18px; letter-spacing: 1px; }
+      .node { fill: #fff; stroke: #9babb8; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #536779; stroke-width: 1.8; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="560" fill="#fff"/>
+  <text x="40" y="40" class="label">文档处理与来源回读</text>
+  <path d="M 40 55 H 1160" stroke="#d8dfe5"/>
+
+  <!-- The derived material is kept separate from the source document. -->
+  <rect x="312" y="76" width="864" height="252" rx="8" fill="#f4f7fa" stroke="#cbd6df" stroke-dasharray="5 5"/>
+  <text x="334" y="108" class="label">本章 · 资料构建</text>
+  <text x="40" y="108" class="label">事实层</text>
+
+  <rect x="40" y="136" width="240" height="148" rx="5" fill="#edf3f7" stroke="#688399" stroke-width="1.5"/>
+  <text x="160" y="182" text-anchor="middle" class="heading">DoclingDocument</text>
+  <path d="M 64 201 H 256" stroke="#c4d2dc"/>
+  <text x="160" y="236" text-anchor="middle" class="body">保留原文与结构</text>
+  <text x="160" y="263" text-anchor="middle" class="body">作为回读来源</text>
+
+  <rect x="334" y="136" width="240" height="148" rx="5" class="node"/>
+  <text x="454" y="176" text-anchor="middle" class="heading">内容处理</text>
+  <text x="454" y="211" text-anchor="middle" class="body">正文切片</text>
+  <text x="454" y="240" text-anchor="middle" class="body">图片描述 · 表格处理</text>
+
+  <rect x="628" y="136" width="240" height="148" rx="5" class="node"/>
+  <text x="748" y="176" text-anchor="middle" class="heading">上下文与摘要</text>
+  <text x="748" y="211" text-anchor="middle" class="body">补充标题等结构信息</text>
+  <text x="748" y="240" text-anchor="middle" class="body">生成或复用摘要</text>
+
+  <rect x="922" y="136" width="232" height="148" rx="5" class="node"/>
+  <text x="1038" y="176" text-anchor="middle" class="heading">检索记录</text>
+  <text x="1038" y="211" text-anchor="middle" class="body">检索文字</text>
+  <text x="1038" y="240" text-anchor="middle" class="body">来源关联</text>
+
+  <path d="M 280 210 H 334" class="flow"/>
+  <path d="M 574 210 H 628" class="flow"/>
+  <path d="M 868 210 H 922" class="flow"/>
+
+  <!-- Query-time reading returns to the source; it does not rewrite it. -->
+  <text x="334" y="378" class="label">后续章节 · 索引与查询</text>
+  <rect x="922" y="404" width="232" height="88" rx="5" class="node"/>
+  <text x="1038" y="456" text-anchor="middle" class="heading">建立索引并查询</text>
+  <rect x="628" y="404" width="240" height="88" rx="5" class="node"/>
+  <text x="748" y="456" text-anchor="middle" class="heading">命中记录</text>
+  <rect x="334" y="404" width="240" height="88" rx="5" class="node"/>
+  <text x="454" y="456" text-anchor="middle" class="heading">回读原文</text>
+
+  <path d="M 1038 284 V 404" class="flow"/>
+  <path d="M 922 448 H 868" class="flow"/>
+  <path d="M 628 448 H 574" class="flow"/>
+  <path d="M 334 448 H 160 V 284" class="flow"/>
+  <rect x="103" y="351" width="114" height="32" fill="#fff"/>
+  <text x="160" y="374" text-anchor="middle" class="label">来源引用</text>
+</svg>

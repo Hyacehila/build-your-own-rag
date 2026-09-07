@@ -2,7 +2,7 @@
 
 简体中文 | 英文译文待补充
 
-上一章：[从不同文件格式到 DoclingDocument](002-docling-document.md) · [返回总目录](../../README.md#主线教程目录) · 下一章：尚未发布
+上一章：[从不同文件格式到 DoclingDocument](002-docling-document.md) · [返回总目录](../../README.md#主线教程目录) · 下一章：[Chunk 与增强层：为检索准备资料](004-chunks-and-enrichment.md)
 
 ## 关于 OCR，先读这篇文章
 
