@@ -2,7 +2,7 @@
 
 [返回项目首页](README.md) · [项目理念](README.md#项目理念) · [社区行为准则](CODE_OF_CONDUCT.md)
 
-欢迎使用中文或英文提交 Issue 和 Pull Request。项目已发布[第一章](tutorials/main/001-document-format/README.md)及其[独立示例](examples/structured-document-facts/README.md)，可以从纠错、翻译、验证示例或补充内容开始。
+欢迎使用中文或英文提交 Issue 和 Pull Request。项目已发布[第一章](tutorials/main/001-document-format.md)及其[独立示例](examples/structured-document-facts/README.md)，可以从纠错、翻译、验证示例或补充内容开始。
 
 教程以真实项目和问题为导向，讨论从数据清洗到评测的方案与权衡。正文面向有编程基础的读者，保持与具体语言无关；代码放在示例项目中，主要采用原生实现，并按需引入依赖。
 
@@ -22,7 +22,7 @@
 
 ## 编写与组织
 
-遵循[教程约定](tutorials/README.md)、[示例约定](examples/README.md)和[数据分发规则](datasets/README.md)。文件夹使用小写英文短横线命名，文本使用 UTF-8、LF，正文优先使用相对链接。
+教程按下方约定组织，示例与数据分别遵循[示例约定](examples/README.md)和[数据分发规则](datasets/README.md)。文件名使用小写英文、数字和短横线，文本使用 UTF-8、LF，正文优先使用相对链接。
 
 模板是写作提示，不属于已发布内容。复制模板后替换其中的占位文字，并在目标位置重新填写链接；没有对应内容的可选部分可删除。不要将模板本身加入教程目录。
 
@@ -30,9 +30,49 @@
 
 示例须保留必要的环境、依赖、配置、运行入口与验证记录，便于读者自行实现或借助 Coding Agent 改写。引入依赖时说明用途与选择理由。区分实际验证结果和预期表现，引用外部结论、图片、代码和数据时标明来源及适用许可。
 
-新章节发布时，同时更新[中文总目录](README.md#主线教程目录)、[英文总目录](README.en.md#main-tutorials)，以及[主线索引](tutorials/main/README.md)或[加更索引](tutorials/extras/README.md)。主线与加更分别填写各自的目录区块。仅有中文时，英文目录保留条目并标注 `Chinese only`。有译文后再添加正文语言切换链接，具体规则见[双语支持约定](tutorials/README.md#双语支持)。
+## 教程文件与导航
 
-中文原文发生实质变化时，同一 PR 中同步译文，或将现有译文明确标为“待同步 / Translation needs update”，保留其实际对应的源版本和日期。未同步的英文目录条目也应标明该状态。
+章节 Markdown 直接放在 `tutorials/main/` 和 `tutorials/extra/` 中，不为每章单独建目录。`tutorials/` 及这两个分类目录不设置 README 或独立索引；阅读目录统一放在根目录的中英文 README 中。
+
+以下为命名示意，译文和图片仅在实际需要时添加：
+
+```text
+tutorials/
+  main/
+    001-topic-slug.md          中文主线章节
+    001-topic-slug.en.md       对应英文译文
+    assets/                   主线图片
+      001-topic-slug-tree.svg
+  extra/
+    ex001-topic-slug.md        中文加更文章
+    ex001-topic-slug.en.md     对应英文译文
+    assets/                   加更图片
+      ex001-topic-slug-flow.png
+```
+
+主线采用 `001-topic-slug.md`，加更采用 `ex001-topic-slug.md`，各自独立递增编号。除明确安排的结构迁移外，已发布的编号和文件名保持稳定；调整阅读顺序时更新目录与导航，不重编号。
+
+新增文章时复制对应的[主线模板](templates/chapter.zh.md)或[加更模板](templates/extra.zh.md)，直接保存为章节文件。替换占位提示，说明学习目标、前置知识、场景、方案权衡、实践任务及验证方法；无内容的可选部分可以删除。实践中区分预期表现、实际观察与推测。
+
+图片放在所属分类的 `assets/` 下，以章节文件名为前缀避免重名，正文使用 `assets/图片文件名` 引用。中英文共用图片，代码和数据也不因翻译而复制。第三方图片就近注明来源、作者、许可和修改情况；实现代码与运行产物仍放在示例中。
+
+发布时同步[中文 README](README.md)和[英文 README](README.en.md)的对应目录区块：主线按推荐学习顺序排列，加更按编号排列。条目使用“编号 + 标题 + 正文链接”，草稿、模板和未发布内容不创建章节入口。
+
+主线提供上一章、返回总目录和下一章，新增或调整顺序时一并更新相邻章节。首章的上一章写“无”，后续未发布时写“尚未发布”，不设置占位链接。加更提供返回总目录，并说明前置知识和相关主线；独立话题注明无主线关联，不要求前后篇导航。
+
+中文主线返回 `../../README.md#主线教程目录`，中文加更返回 `../../README.md#特别加更目录`；英文对应 `../../README.en.md#main-tutorials` 和 `../../README.en.md#extra-chapters`。同一分类的相邻文章直接使用文件名链接。
+
+## 双语支持
+
+中文正文没有译文时显示“简体中文 | 英文译文待补充”，不创建英文空文件。译文与中文同目录、同名，增加 `.en` 后缀；例如 `001-topic-slug.md` 对应 `001-topic-slug.en.md`，无需改变中文路径。
+
+译文完成后，中文使用 `简体中文 | [English](001-topic-slug.en.md)`，英文使用 `[简体中文](001-topic-slug.md) | English`，替换为实际文件名；加更同理。有对应文件后才添加切换链接。
+
+译文使用[英文章节模板](templates/chapter.en.md)或[英文加更模板](templates/extra.en.md)，记录中文来源、对应版本和最后同步日期（`YYYY-MM-DD`）。版本优先填写包含中文内容的 Git commit；与中文首次同时提交时，可以使用明确的中文修订标识或版本日期。
+
+英文总目录保留全部已发布章节，未翻译条目标注 `Chinese only` 并链接中文正文。英文文章的相邻章节导航同样优先链接英文；只有中文时标注 `Chinese only`。
+
+中文原文发生实质变化时，同一 PR 中同步译文，或将现有译文明确标为“待同步 / Translation needs update”，保留其实际对应的源版本和日期。未同步的英文目录条目也应标明该状态，完成同步后再更新。
 
 ## 提交前检查
 

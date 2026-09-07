@@ -2,7 +2,7 @@
 
 简体中文 | 英文译文待补充
 
-上一章：无 · [返回总目录](../../../README.md#主线教程目录) · 下一章：尚未发布
+上一章：无 · [返回总目录](../../README.md#主线教程目录) · 下一章：尚未发布
 
 ## 为什么第一章先聊数据格式
 
@@ -12,7 +12,7 @@
 
 我希望把这些选择尽量留到后面。现在不做结构索引，不代表以后也不需要；今天使用一种切片方式，也不意味着它会一直适合。事实层应该保存足够清楚的来源与结构，让后续方案有调整的余地。
 
-本章会借用我在 Lenny Compass 中的经验，但所有演示内容都来自一份[原创虚构的产品复盘](../../../examples/structured-document-facts/fixtures/product-review.md)，不分发那个项目的真实数据。读完后，你应该能够判断一份解析结果保留了什么、丢掉了什么，并理解为什么我偏爱 DoclingDocument 这样的表示。前置知识只需要基本的文档层级概念；不了解 JSON Pointer 也没关系，后面会用实际对象解释。
+本章会借用我在 Lenny Compass 中的经验，但所有演示内容都来自一份[原创虚构的产品复盘](../../examples/structured-document-facts/fixtures/product-review.md)，不分发那个项目的真实数据。读完后，你应该能够判断一份解析结果保留了什么、丢掉了什么，并理解为什么我偏爱 DoclingDocument 这样的表示。前置知识只需要基本的文档层级概念；不了解 JSON Pointer 也没关系，后面会用实际对象解释。
 
 ## 拍平一份文档，会丢掉什么
 
@@ -62,7 +62,7 @@ DoclingDocument 是 Docling 提供的统一文档表示。在[官方说明](http
 
 比如 `#/texts/4`，表示从当前 JSON 对象的 `texts` 数组中取索引为 4 的元素。树里的 `children` 保存这样的引用，被引用的内容仍然只在对应集合中存放。既能按结构遍历，也能按元素类型查看，不需要为每一种访问方式复制一遍正文。
 
-下面是本例实际生成的一个节点，省略了其他字段，但保留完整的 `children` 列表。它是数据格式摘录，不是独立有效的完整文档；完整对象见[参考 JSON](../../../examples/structured-document-facts/reference/document.json)。
+下面是本例实际生成的一个节点，省略了其他字段，但保留完整的 `children` 列表。它是数据格式摘录，不是独立有效的完整文档；完整对象见[参考 JSON](../../examples/structured-document-facts/reference/document.json)。
 
 ```json
 {
@@ -109,7 +109,7 @@ DoclingDocument 是 Docling 提供的统一文档表示。在[官方说明](http
         └── 权限说明与列表
 ```
 
-[适配前的对象](../../../examples/structured-document-facts/reference/parsed-document.json)、[适配后的对象](../../../examples/structured-document-facts/reference/document.json)和[完整结构树](../../../examples/structured-document-facts/reference/structure.txt)都保留在示例中。图片替代文字被用作图注，也是本例显式选择的映射规则，不应该悄悄推广到所有输入。这些小地方正说明，我们需要同时检查数据格式、转换结果和自己的适配逻辑。
+[适配前的对象](../../examples/structured-document-facts/reference/parsed-document.json)、[适配后的对象](../../examples/structured-document-facts/reference/document.json)和[完整结构树](../../examples/structured-document-facts/reference/structure.txt)都保留在示例中。图片替代文字被用作图注，也是本例显式选择的映射规则，不应该悄悄推广到所有输入。这些小地方正说明，我们需要同时检查数据格式、转换结果和自己的适配逻辑。
 
 ## Lenny Compass 给我的经验
 
@@ -119,7 +119,7 @@ Lenny Compass 是我围绕个人订阅资料做的一个 RAG 项目。这里借�
 
 这样的分开保存有一个直接用途：出现问题时可以沿途检查。是原始文档就这么写，还是结构整理出了问题？是转换时丢了关系，还是检索读取了错误的上下文？如果只留下最后一个索引库，这些区别就很难再看清。
 
-保存文档对象也不只是导出一个 JSON。Lenny Compass 会把它重新加载回来，检查序列化前后是否一致，再记录文档与来源的哈希。我们的[独立示例](../../../examples/structured-document-facts/README.md)保留了这部分思路：保存原始字节、结构化对象与来源清单，并把定位信息绑定到文档版本。
+保存文档对象也不只是导出一个 JSON。Lenny Compass 会把它重新加载回来，检查序列化前后是否一致，再记录文档与来源的哈希。我们的[独立示例](../../examples/structured-document-facts/README.md)保留了这部分思路：保存原始字节、结构化对象与来源清单，并把定位信息绑定到文档版本。
 
 `#/texts/4` 只对某份具体对象有意义。如果前面插入了新节点，再次转换后同一个地址可能对应其他内容。因此回读时要一起核对文档 ID、文档对象哈希和节点引用。哈希不匹配就应明确失败，而不是因为这个编号仍然存在，就继续返回它。
 
@@ -153,7 +153,7 @@ Lenny Compass 是我围绕个人订阅资料做的一个 RAG 项目。这里借�
 
 ## 动手检查这份样例
 
-运行入口与环境要求见[示例说明](../../../examples/structured-document-facts/README.md#构建与读取)。不想先安装依赖，也可以直接对照[原始 Markdown](../../../examples/structured-document-facts/fixtures/product-review.md)和[参考输出](../../../examples/structured-document-facts/reference/README.md)阅读。
+运行入口与环境要求见[示例说明](../../examples/structured-document-facts/README.md#构建与读取)。不想先安装依赖，也可以直接对照[原始 Markdown](../../examples/structured-document-facts/fixtures/product-review.md)和[参考输出](../../examples/structured-document-facts/reference/README.md)阅读。
 
 先找到两个“观察结果”，检查它们的父级是否不同；再看表格中的“55%”，确认列标题和统计口径都还在。随后查看图片地址、图注，以及适配前后这些关系发生了什么变化。最后尝试拿一个不同文档版本的定位信息回读，观察程序是否明确拒绝，而不是静默返回错误内容。
 
@@ -175,6 +175,6 @@ Lenny Compass 是我围绕个人订阅资料做的一个 RAG 项目。这里借�
 - Hyacehila：[《让 OCR 再次伟大》](https://hyacehila.github.io/blog/2026/07/04/make-ocr-great-again/)，关于结构恢复、表示与查询边界的讨论。
 - Docling：[Docling document](https://docling-project.github.io/docling/concepts/docling_document/)，文档对象的官方概念说明。
 - Docling Core：[v2.91.0 文档类型定义](https://github.com/docling-project/docling-core/blob/v2.91.0/docling_core/types/doc/document.py)，本例固定版本的数据结构来源。
-- Lenny Compass 的代码参考版本、抽取范围和新增适配规则见[示例来源说明](../../../examples/structured-document-facts/README.md#来源与简化范围)。公开教程不依赖私有仓库访问。
+- Lenny Compass 的代码参考版本、抽取范围和新增适配规则见[示例来源说明](../../examples/structured-document-facts/README.md#来源与简化范围)。公开教程不依赖私有仓库访问。
 
-本章为作者基于上述经验重新撰写的教程，原创正文采用 [CC BY 4.0](../../../LICENSE-DOCS)；关联示例中的原创代码采用 [MIT](../../../LICENSE)。
+本章为作者基于上述经验重新撰写的教程，原创正文采用 [CC BY 4.0](../../LICENSE-DOCS)；关联示例中的原创代码采用 [MIT](../../LICENSE)。

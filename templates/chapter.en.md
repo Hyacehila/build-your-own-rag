@@ -1,19 +1,19 @@
-<!-- Writing template, not a published chapter. Copy to tutorials/main/<id-topic>/README.en.md. -->
+<!-- Writing template, not a published chapter. Copy to tutorials/main/<id-topic>.en.md. -->
 <!-- Replace bracketed prompts and plain-text navigation with valid links in the destination directory. -->
 <!-- Short JSON excerpts and document trees may illustrate data structures. Check them against the full object and state omissions. Put implementation code, dependencies, and run commands in the linked example. -->
 
 # [Number] · [Chapter title]
 
-简体中文：[Chinese README path] | English
+简体中文：[Chinese article filename] | English
 
-<!-- Once the Chinese source exists here, use: [简体中文](README.md) | English -->
+<!-- Link to the matching <id-topic>.md in this directory. Share images at assets/<id-topic>-<image-name> with the Chinese article. -->
 
 - Source: [Chinese article title and path]
 - Source revision: [Chinese source commit, revision identifier, or version date]
 - Last synchronized: [YYYY-MM-DD]
 - Translation status: [In sync / Translation needs update]
 
-Previous: [Title and path, or None] · Contents: [Root English README path] · Next: [Title and path, or Not published yet]
+Previous: [Title and filename, or None] · Contents: [../../README.en.md#main-tutorials] · Next: [Title and filename, or Not published yet]
 
 ## Scenario and problem
 

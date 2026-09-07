@@ -35,21 +35,17 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 - **[成品示例](examples/README.md)**：各章节引用的项目代码参考，便于理解实现，独立说明环境与依赖。
 - **[数据集](datasets/README.md)**：包括开源数据集和作者个人提供或整理的数据，符合分发条件的小型完整数据集随仓库提供。
 
-中文是主要写作语言，英文文章按章补译。已翻译的正文提供语言切换；[英文目录](README.en.md#main-tutorials)保留全部已发布章节，未翻译的条目标注 `Chinese only`。具体规则见[双语支持约定](tutorials/README.md#双语支持)。
+中文是主要写作语言，英文文章按章补译。已翻译的正文提供语言切换；[英文目录](README.en.md#main-tutorials)保留全部已发布章节，未翻译的条目标注 `Chinese only`。具体规则见[双语支持约定](CONTRIBUTING.md#双语支持)。
 
 ## 主线教程目录
 
 主线从数据清洗起步。第一章先讨论清洗的目标产物：什么样的数据格式，能够保存来源与结构，供后续切片、索引和检索复用。
 
-- [001 · 什么样的数据格式，适合成为 RAG 的事实层？](tutorials/main/001-document-format/README.md)
-
-[主线索引与新增章节说明](tutorials/main/README.md)
+- [001 · 什么样的数据格式，适合成为 RAG 的事实层？](tutorials/main/001-document-format.md)
 
 ## 特别加更目录
 
 尚未发布。
-
-[加更索引与新增文章说明](tutorials/extras/README.md)
 
 ## 示例与数据
 
@@ -60,7 +56,7 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 
 欢迎纠错、补充说明、翻译文章，以及贡献示例和数据集。中文和英文的 Issue、Pull Request 均可。
 
-开始之前请阅读[贡献指南](CONTRIBUTING.md)、[教程写作约定](tutorials/README.md)和[社区行为准则](CODE_OF_CONDUCT.md)。
+开始之前请阅读[贡献指南](CONTRIBUTING.md)和[社区行为准则](CODE_OF_CONDUCT.md)。章节命名、图片组织与导航规则见[教程文件与导航](CONTRIBUTING.md#教程文件与导航)。
 
 ## 许可
 

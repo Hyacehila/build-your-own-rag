@@ -1,19 +1,19 @@
-<!-- Writing template, not a published extra. Copy to tutorials/extras/<ex-id-topic>/README.en.md. -->
+<!-- Writing template, not a published extra. Copy to tutorials/extra/<ex-id-topic>.en.md. -->
 <!-- Replace bracketed prompts and plain-text navigation with valid links in the destination directory. -->
 <!-- Short JSON excerpts and document trees may illustrate data structures. Check them against the full object and state omissions. Keep implementation code and run instructions in linked examples. An extra may be unrelated to the main tutorials. -->
 
 # [Extra number] · [Title]
 
-简体中文：[Chinese README path] | English
+简体中文：[Chinese article filename] | English
 
-<!-- Once the Chinese source exists here, use: [简体中文](README.md) | English -->
+<!-- Link to the matching <ex-id-topic>.md in this directory. Share images at assets/<ex-id-topic>-<image-name> with the Chinese article. -->
 
 - Source: [Chinese article title and path]
 - Source revision: [Chinese source commit, revision identifier, or version date]
 - Last synchronized: [YYYY-MM-DD]
 - Translation status: [In sync / Translation needs update]
 
-Contents: [Root English README path]
+Contents: [../../README.en.md#extra-chapters]
 
 ## Why this extra exists
 

@@ -35,21 +35,17 @@ Each chapter will state any additional prerequisites. Most can be learned as you
 - **[Complete examples](examples/README.md)** provide reference implementations cited by the chapters, each with its own environment and dependencies.
 - **[Datasets](datasets/README.md)** include open datasets and data personally provided or organized by the author. Small, complete datasets that meet the distribution requirements will be included in the repository.
 
-Chinese is the primary writing language. English translations are added chapter by chapter. Translated articles provide language-switch links. This index will include every published chapter, linking to Chinese articles with a **Chinese only** label when no translation exists. See the [translation conventions](tutorials/README.md#双语支持) for details (in Chinese).
+Chinese is the primary writing language. English translations are added chapter by chapter. Translated articles provide language-switch links. This index will include every published chapter, linking to Chinese articles with a **Chinese only** label when no translation exists. See the [translation conventions](CONTRIBUTING.md#双语支持) for details (in Chinese).
 
 ## Main tutorials
 
 The main sequence starts with data cleaning. Chapter one first considers its desired output: a document format that preserves sources and structure for later chunking, indexing, and retrieval.
 
-- [001 · What makes a good document format for a RAG fact layer?](tutorials/main/001-document-format/README.md) — **Chinese only**
-
-[Main index and chapter contribution notes](tutorials/main/README.md) (in Chinese)
+- [001 · What makes a good document format for a RAG fact layer?](tutorials/main/001-document-format.md) — **Chinese only**
 
 ## Extra chapters
 
 None published yet.
-
-[Extra index and contribution notes](tutorials/extras/README.md) (in Chinese)
 
 ## Examples and data
 
@@ -60,7 +56,7 @@ None published yet.
 
 Corrections, explanations, translations, examples, and datasets are welcome. Issues and pull requests may be written in Chinese or English.
 
-Read the [contribution guide](CONTRIBUTING.md), [tutorial conventions](tutorials/README.md), and [code of conduct](CODE_OF_CONDUCT.md) before contributing. These supporting guides are currently in Chinese.
+Read the [contribution guide](CONTRIBUTING.md) and [code of conduct](CODE_OF_CONDUCT.md) before contributing. See [tutorial files and navigation](CONTRIBUTING.md#教程文件与导航) for chapter naming, image organization, and navigation rules. These supporting guides are currently in Chinese.
 
 ## License
 
