@@ -42,6 +42,7 @@ Chinese is the primary writing language. English translations are added chapter 
 The main sequence starts with data cleaning and gradually expands to retrieval, generation, and newer approaches I find interesting, such as structured retrieval, knowledge graphs, and knowledge systems like LLM Wiki. We will spend considerable time on data cleaning and storage; these discussions will often lay the groundwork for later chapters.
 
 - [001 · What makes a good document format for a RAG fact layer?](tutorials/main/001-document-format.md) — **Chinese only**
+- [002 · From different file formats to DoclingDocument](tutorials/main/002-docling-document.md) — **Chinese only**
 
 ## Extra chapters
 

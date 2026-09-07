@@ -42,6 +42,7 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 主线从数据清洗起步，逐步扩展到检索、生成，以及那些相对新颖和有趣的技术方案，比如结构化检索、知识图谱和类似 LLM Wiki 的知识系统。我们会在数据清洗和存储上花费不少笔墨，这些内容往往都是后文的伏笔。
 
 - [001 · 什么样的数据格式，适合成为 RAG 的事实层？](tutorials/main/001-document-format.md)
+- [002 · 从不同文件格式到 DoclingDocument](tutorials/main/002-docling-document.md)
 
 ## 特别加更目录
 
