@@ -45,6 +45,7 @@ The main sequence starts with data cleaning and gradually expands to retrieval, 
 - [002 · From different file formats to DoclingDocument](tutorials/main/002-docling-document.md) — **Chinese only**
 - [003 · OCR and document parsing: choices and tradeoffs](tutorials/main/003-ocr-and-parsing.md) — **Chinese only**
 - [004 · Chunks and enrichment: preparing data for retrieval](tutorials/main/004-chunks-and-enrichment.md) — **Chinese only**
+- [005 · From retrieval to answers: query workflows and Agentic RAG](tutorials/main/005-retrieval-and-agentic-rag.md) — **Chinese only**
 
 ## Extra chapters
 

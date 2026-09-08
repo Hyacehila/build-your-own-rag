@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="716" viewBox="0 0 1200 716" role="img" aria-labelledby="title desc">
+  <title id="title">Direct 与 Agentic RAG 的查询流程</title>
+  <desc id="desc">Direct 按固定顺序执行原始提问、查询重写、双路召回、RRF 融合与可选重排、来源回读和回答。Agentic 先取得两路少量候选，再由 Agent 选择关键词搜索、语义搜索或来源窗口回读。工具返回候选、证据或错误，检查预算后继续决策；证据足够或无法继续时，回答或说明资料不足。两种流程复用同一套搜索和来源回读能力，只有已读取的证据用于支持回答引用。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 8 4 L 0 8 Z" fill="#536779"/>
+    </marker>
+    <style>
+      text { font-family: "Noto Sans CJK SC", "Microsoft YaHei", "PingFang SC", sans-serif; }
+      .title { fill: #243746; font-size: 23px; font-weight: 600; }
+      .heading { fill: #243746; font-size: 21px; font-weight: 600; }
+      .body { fill: #526474; font-size: 18px; }
+      .label { fill: #526474; font-size: 19px; }
+      .node { fill: #fff; stroke: #9babb8; stroke-width: 1.5; }
+      .source { fill: #edf3f7; stroke: #688399; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #536779; stroke-width: 1.8; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1200" height="716" fill="#fff"/>
+  <text x="40" y="39" class="title">从搜索候选到原文证据</text>
+  <path d="M 40 55 H 1160" stroke="#d8dfe5"/>
+
+  <!-- A fixed query workflow; reranking is optional. -->
+  <rect x="28" y="76" width="1144" height="207" rx="8" fill="#f4f7fa" stroke="#cbd6df"/>
+  <text x="50" y="112" class="heading">Direct</text>
+  <text x="147" y="112" class="label">固定程序安排搜索与回读</text>
+  <rect x="50" y="145" width="158" height="89" rx="5" class="node"/>
+  <text x="129" y="183" text-anchor="middle" class="heading">原始提问</text>
+  <text x="129" y="213" text-anchor="middle" class="body">保留用户意图</text>
+  <rect x="238" y="145" width="158" height="89" rx="5" class="node"/>
+  <text x="317" y="183" text-anchor="middle" class="heading">查询重写</text>
+  <text x="317" y="213" text-anchor="middle" class="body">利用已知上下文</text>
+  <rect x="426" y="145" width="158" height="89" rx="5" class="node"/>
+  <text x="505" y="183" text-anchor="middle" class="heading">双路召回</text>
+  <text x="505" y="213" text-anchor="middle" class="body">关键词 · 语义</text>
+  <rect x="614" y="145" width="158" height="89" rx="5" class="node"/>
+  <text x="693" y="183" text-anchor="middle" class="heading">RRF 融合</text>
+  <text x="693" y="213" text-anchor="middle" class="body">可选重排与筛选</text>
+  <rect x="802" y="145" width="158" height="89" rx="5" class="source"/>
+  <text x="881" y="183" text-anchor="middle" class="heading">来源回读</text>
+  <text x="881" y="213" text-anchor="middle" class="body">扩展窗口 · 去重</text>
+  <rect x="990" y="145" width="158" height="89" rx="5" class="node"/>
+  <text x="1069" y="183" text-anchor="middle" class="heading">依据原文回答</text>
+  <text x="1069" y="213" text-anchor="middle" class="body">引用 · 说明缺口</text>
+  <path d="M 208 189 H 238" class="flow"/>
+  <path d="M 396 189 H 426" class="flow"/>
+  <path d="M 584 189 H 614" class="flow"/>
+  <path d="M 772 189 H 802" class="flow"/>
+  <path d="M 960 189 H 990" class="flow"/>
+  <text x="50" y="263" class="body">候选帮助定位；回读后获得证据。</text>
+
+  <!-- The loop shows the chapter's AI-PM-style agent policy, not a universal definition. -->
+  <rect x="28" y="309" width="1144" height="354" rx="8" fill="#f4f7fa" stroke="#cbd6df"/>
+  <text x="50" y="345" class="heading">Agentic</text>
+  <text x="162" y="345" class="label">Agent 选择下一步，复用同一套搜索与回读能力</text>
+
+  <rect x="50" y="399" width="202" height="89" rx="5" class="node"/>
+  <text x="151" y="436" text-anchor="middle" class="heading">两路初始候选</text>
+  <text x="151" y="466" text-anchor="middle" class="body">原问题与已知范围</text>
+  <rect x="330" y="399" width="200" height="89" rx="5" class="node"/>
+  <text x="430" y="436" text-anchor="middle" class="heading">Agent 决策</text>
+  <text x="430" y="466" text-anchor="middle" class="body">还需要找什么、读什么</text>
+  <rect x="620" y="381" width="240" height="125" rx="5" class="source"/>
+  <text x="740" y="414" text-anchor="middle" class="heading">执行所选工具</text>
+  <path d="M 641 428 H 839" stroke="#c4d2dc"/>
+  <text x="740" y="455" text-anchor="middle" class="body">关键词 / 语义搜索</text>
+  <text x="740" y="483" text-anchor="middle" class="body">来源窗口回读</text>
+  <rect x="930" y="399" width="218" height="89" rx="5" class="node"/>
+  <text x="1039" y="436" text-anchor="middle" class="heading">工具返回结果</text>
+  <text x="1039" y="466" text-anchor="middle" class="body">候选 / 已读证据 / 错误</text>
+  <path d="M 252 443 H 330" class="flow"/>
+  <path d="M 530 443 H 620" class="flow"/>
+  <path d="M 860 443 H 930" class="flow"/>
+  <path d="M 1039 488 V 564 H 430 V 488" class="flow"/>
+  <text x="721" y="548" text-anchor="middle" class="body">更新上下文，检查工具、读取与证据预算</text>
+
+  <rect x="50" y="581" width="202" height="61" rx="5" class="node"/>
+  <text x="151" y="619" text-anchor="middle" class="heading">回答 / 说明不足</text>
+  <path d="M 364 488 V 611 H 252" class="flow"/>
+  <text x="389" y="617" class="body">证据足够，或无法继续时结束</text>
+
+  <text x="40" y="698" class="label">两种模式都核对原文来源；回答中的引用应对应本轮成功读取的证据。</text>
+</svg>

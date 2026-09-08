@@ -45,6 +45,7 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 - [002 · 从不同文件格式到 DoclingDocument](tutorials/main/002-docling-document.md)
 - [003 · OCR 与文档解析：一些选择与取舍](tutorials/main/003-ocr-and-parsing.md)
 - [004 · Chunk 与增强层：为检索准备资料](tutorials/main/004-chunks-and-enrichment.md)
+- [005 · 从召回到回答：查询流程与 Agentic RAG](tutorials/main/005-retrieval-and-agentic-rag.md)
 
 ## 特别加更目录
 
