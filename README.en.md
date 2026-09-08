@@ -48,7 +48,7 @@ The main sequence starts with data cleaning and gradually expands to retrieval, 
 
 ## Extra chapters
 
-None published yet.
+- [ex001 · Embedding Atlas: Visualizing Embedding Spaces for Better RAG](tutorials/extra/ex001-embedding-atlas.md) — **Chinese only**
 
 ## Examples and data
 

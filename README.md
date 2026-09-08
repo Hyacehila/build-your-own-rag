@@ -48,7 +48,7 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 
 ## 特别加更目录
 
-尚未发布。
+- [ex001 · Embedding Atlas：用可视化理解 RAG 的嵌入空间](tutorials/extra/ex001-embedding-atlas.md)
 
 ## 示例与数据
 
