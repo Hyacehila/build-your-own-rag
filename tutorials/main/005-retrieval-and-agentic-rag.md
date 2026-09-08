@@ -57,7 +57,7 @@
 两路原始分数的含义和范围不同，不能直接相加。我习惯使用 RRF（Reciprocal Rank Fusion）合并排名。它只利用候选在每一路的名次，将各路贡献加起来，分数越高越靠前。[原始论文](https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf)中的形式如下：
 
 $$
-\operatorname{RRF}(d)=\sum_{r\,\text{包含}\,d}\frac{1}{k+\operatorname{rank}_r(d)}
+\mathrm{RRF}(d)=\sum_{r\,\text{包含}\,d}\frac{1}{k+\mathrm{rank}_r(d)}
 $$
 
 名次从 1 开始。本文对有限候选列表计算，某一路没有返回这条记录，就不贡献分数。`k` 是平滑常数，用于缓和靠前名次之间的贡献差距，与每路返回的候选数量是不同参数。下面取 `k = 60`，两路各展示前三名：
