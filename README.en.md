@@ -46,6 +46,7 @@ The main sequence starts with data cleaning and gradually expands to retrieval, 
 - [003 · OCR and document parsing: choices and tradeoffs](tutorials/main/003-ocr-and-parsing.md) — **Chinese only**
 - [004 · Chunks and enrichment: preparing data for retrieval](tutorials/main/004-chunks-and-enrichment.md) — **Chinese only**
 - [005 · From retrieval to answers: query workflows and Agentic RAG](tutorials/main/005-retrieval-and-agentic-rag.md) — **Chinese only**
+- [006 · Database storage and structure-aware source lookup](tutorials/main/006-databases-and-source-lookup.md) — **Chinese only**
 
 ## Extra chapters
 

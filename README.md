@@ -46,6 +46,7 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 - [003 · OCR 与文档解析：一些选择与取舍](tutorials/main/003-ocr-and-parsing.md)
 - [004 · Chunk 与增强层：为检索准备资料](tutorials/main/004-chunks-and-enrichment.md)
 - [005 · 从召回到回答：查询流程与 Agentic RAG](tutorials/main/005-retrieval-and-agentic-rag.md)
+- [006 · 数据库存储与结构化回查](tutorials/main/006-databases-and-source-lookup.md)
 
 ## 特别加更目录
 
