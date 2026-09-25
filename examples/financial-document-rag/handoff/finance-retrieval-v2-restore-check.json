@@ -1,0 +1,197 @@
+{
+  "status": "passed",
+  "database_sha256": "b95dd62971ff4eef648a7a862bca5fd23715ec8d8e780690cf645753fd385d29",
+  "prepared": {
+    "fact_release_id": "8492c7ebefb06aa6e4de08068f5569761bf8a9def270a7f9b7c538fc089eef2d",
+    "documents": 6,
+    "accepted_documents": 6,
+    "neural_parse_calls": 0
+  },
+  "counts": {
+    "documents": 6,
+    "parses": 18,
+    "doc_items": 79703,
+    "chunks": 15205,
+    "chunk_items": 35013,
+    "embeddings": 14967,
+    "chunk_vectors": 15205,
+    "snapshots": 18,
+    "api_calls": 0,
+    "runs": 0,
+    "records": 0
+  },
+  "api_keys_available": false,
+  "network_guard": "all model HTTP calls forbidden during verification",
+  "new_api_calls": 0,
+  "check": {
+    "status": "passed",
+    "scope": "fact-and-retrieval-integrity; not an answer-quality evaluation",
+    "fact_release_id": "8492c7ebefb06aa6e4de08068f5569761bf8a9def270a7f9b7c538fc089eef2d",
+    "indices": [
+      {
+        "kind": "flat",
+        "index_id": "2f94fffc7b8df9a9e94d983eb2f90e8302beef2d279dbbf4430fca3722ae624c",
+        "chunks": 4243,
+        "types": {
+          "text": 4243
+        },
+        "max_tokens": 800,
+        "source_alignment": {
+          "node": 4243
+        },
+        "assets_without_text_entry": {},
+        "source_reads": [
+          {
+            "doc_id": "bank_of_america_2024",
+            "citations": 4,
+            "tokens": 3488,
+            "page_images": 2
+          },
+          {
+            "doc_id": "morgan_stanley_2024",
+            "citations": 4,
+            "tokens": 2373,
+            "page_images": 2
+          },
+          {
+            "doc_id": "goldman_sachs_2024",
+            "citations": 2,
+            "tokens": 1069,
+            "page_images": 1
+          },
+          {
+            "doc_id": "wells_fargo_2024",
+            "citations": 2,
+            "tokens": 1471,
+            "page_images": 1
+          },
+          {
+            "doc_id": "citigroup_2024",
+            "citations": 4,
+            "tokens": 1847,
+            "page_images": 2
+          },
+          {
+            "doc_id": "jpmorgan_chase_2024",
+            "citations": 4,
+            "tokens": 2088,
+            "page_images": 2
+          }
+        ],
+        "vectors": {
+          "chunks_mapped": 4243,
+          "dimensions": 1024,
+          "sql_numpy_probes": 3,
+          "hybrid_smoke": {
+            "query_chunk_id": "000e9022ef375bb8d8a37c18d933e49246679b9500b64a5ccb3ac65a1f778a2c",
+            "sparse_hits": 30,
+            "dense_hits": 30,
+            "fused_hits": 54,
+            "query_vector": "exact cache hit; no API request",
+            "top_chunk_id": "000e9022ef375bb8d8a37c18d933e49246679b9500b64a5ccb3ac65a1f778a2c"
+          }
+        }
+      },
+      {
+        "kind": "structured",
+        "index_id": "f8ceb58b44631d6b8c8beb040559370ee99c4bf01f92a354e245c06e56230da3",
+        "chunks": 10962,
+        "types": {
+          "table": 1928,
+          "text": 9027,
+          "picture": 7
+        },
+        "max_tokens": 800,
+        "source_alignment": {
+          "node": 10446,
+          "unique_original_text": 516
+        },
+        "assets_without_text_entry": {
+          "picture": 118
+        },
+        "source_reads": [
+          {
+            "doc_id": "bank_of_america_2024",
+            "citations": 2,
+            "tokens": 1544,
+            "page_images": 1
+          },
+          {
+            "doc_id": "morgan_stanley_2024",
+            "citations": 2,
+            "tokens": 23,
+            "page_images": 1
+          },
+          {
+            "doc_id": "goldman_sachs_2024",
+            "citations": 2,
+            "tokens": 71,
+            "page_images": 1
+          },
+          {
+            "doc_id": "wells_fargo_2024",
+            "citations": 5,
+            "tokens": 84,
+            "page_images": 1
+          },
+          {
+            "doc_id": "citigroup_2024",
+            "citations": 3,
+            "tokens": 350,
+            "page_images": 1
+          },
+          {
+            "doc_id": "jpmorgan_chase_2024",
+            "citations": 3,
+            "tokens": 73,
+            "page_images": 1
+          }
+        ],
+        "vectors": {
+          "chunks_mapped": 10962,
+          "dimensions": 1024,
+          "sql_numpy_probes": 3,
+          "hybrid_smoke": {
+            "query_chunk_id": "0001f74b37bd918f05d5cba6f99fbe06413942a6c23c1b1b81b7dabae34a28c1",
+            "sparse_hits": 30,
+            "dense_hits": 30,
+            "fused_hits": 48,
+            "query_vector": "exact cache hit; no API request",
+            "top_chunk_id": "0001f74b37bd918f05d5cba6f99fbe06413942a6c23c1b1b81b7dabae34a28c1"
+          }
+        }
+      }
+    ],
+    "embedding": {
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-text-embedding",
+      "request_params": {
+        "dimensions": 1024,
+        "encoding_format": "float"
+      },
+      "cache_revision": "1"
+    },
+    "tokenizer": {
+      "kind": "tiktoken",
+      "name": "cl100k_base",
+      "revision": null,
+      "estimated": true
+    },
+    "api_usage": {
+      "embedding": {
+        "completion_tokens_reported": null,
+        "failed_requests": 0,
+        "prompt_tokens_reported": 3342082,
+        "requests": 529,
+        "total_tokens_reported": 3342082,
+        "usage_missing_requests": 0
+      }
+    },
+    "local_api_usage": {},
+    "secret_scan": {
+      "checked_values": 1154529,
+      "known_keys_checked": 0,
+      "matches": 0
+    }
+  }
+}

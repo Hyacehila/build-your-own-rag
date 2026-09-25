@@ -1,0 +1,9 @@
+data/
+config.local.toml
+config.restore.toml
+*.sqlite*
+!handoff/finance-facts-v2.sqlite
+!handoff/finance-retrieval-v2.sqlite
+.env
+.env.*
+!.env.example
