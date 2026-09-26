@@ -10,6 +10,10 @@
 
 - [结构化文档事实层](structured-document-facts/README.md)：从原创 Markdown 转成 DoclingDocument，保留结构并演示版本绑定的节点回读。
 
+## 开发中
+
+- [金融长文档 RAG 实验](financial-document-rag/README.md)：当前 v2 已发布事实层与真实 A/B 检索层；C/D 通过虚构小样链路检查，真实财报的完整 C/D 和正式实验尚待完成。
+
 ## 组织方式
 
 每个示例放在 `examples/<example-slug>/`，使用小写英文短横线命名。复制[示例说明模板](../templates/example-readme.md)作为该目录的 `README.md`，源代码、依赖清单和必要配置放在同一项目内。

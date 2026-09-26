@@ -1,0 +1,4 @@
+interface:
+  display_name: "PDF 到 DoclingDocument 清洗"
+  short_description: "以 Docling 初步解析、目录标题核验及局部 MinerU 修复交付可追溯文档"
+  default_prompt: "使用 $clean-financial-documents 从指定 PDF 构建高质量 DoclingDocument，按缺陷选择 Docling 配置与局部 MinerU 修复，限定 Agent 阅读目录和标题，完成来源与最终树验收；交付文档及必要记录，不要求数据库、切片或向量化。"

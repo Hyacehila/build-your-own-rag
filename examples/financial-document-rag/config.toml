@@ -1,0 +1,97 @@
+# Current v2 fact and A/B retrieval contract. Credentials come from .env or the environment.
+work_dir = ".local/retrieval-v2"
+
+[dataset]
+repo = "vidore/vidore_v3_finance_en"
+revision = "7f432c176d82e27546501ad8064a713ac3071809"
+expected_documents = 6
+expected_pages = 2942
+expected_english_queries = 309
+
+[tokenizer]
+kind = "tiktoken"
+name = "cl100k_base"
+estimated = true
+
+[chunking]
+max_tokens = 800
+overlap = 100
+table_headers = "multirow"
+source_scope = "fragment"
+
+[retrieval]
+sparse_k = 30
+dense_k = 30
+rrf_k = 60
+
+[query]
+text_tokens = 8000
+page_images = 4
+image_scale = 1.5
+direct_read_hits = 10
+agent_model_calls = 6
+agent_tool_calls = 8
+search_preview_tokens = 80
+
+[enrichment]
+image_estimate_tokens = 180
+table_estimate_tokens = 220
+max_input_tokens = 12000
+prompt_version = "1"
+
+[pricing]
+embedding_per_million = 0.5
+currency = "CNY"
+label = "Planning assumption only; verify actual billing with the provider."
+
+[models.embedding]
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+model = "qwen3.7-text-embedding"
+api_key_env = "DASHSCOPE_API_KEY"
+batch_size = 20
+cache_revision = "1"
+timeout_seconds = 120
+retries = 2
+
+[models.embedding.request_params]
+dimensions = 1024
+encoding_format = "float"
+
+[models.chat]
+base_url = "https://api.deepseek.com"
+model = "deepseek-flash"
+api_key_env = "DEEPSEEK_API_KEY"
+timeout_seconds = 180
+retries = 1
+cache_revision = "1"
+
+[models.chat.request_params]
+thinking = { type = "enabled" }
+reasoning_effort = "low"
+max_tokens = 8192
+
+[models.vision]
+base_url = "https://api.deepseek.com"
+model = "deepseek-flash"
+api_key_env = "DEEPSEEK_API_KEY"
+timeout_seconds = 180
+retries = 1
+cache_revision = "1"
+
+[models.vision.request_params]
+thinking = { type = "enabled" }
+reasoning_effort = "low"
+max_tokens = 4096
+
+[models.judge]
+base_url = "https://api.deepseek.com"
+model = "deepseek-flash"
+api_key_env = "DEEPSEEK_API_KEY"
+timeout_seconds = 180
+retries = 1
+cache_revision = "1"
+
+[models.judge.request_params]
+thinking = { type = "enabled" }
+reasoning_effort = "low"
+max_tokens = 2048

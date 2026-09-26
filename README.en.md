@@ -54,7 +54,7 @@ The main sequence starts with data cleaning and gradually expands to retrieval, 
 
 ## Examples and data
 
-- [Complete examples](examples/README.md): the [structured document facts example](examples/structured-document-facts/README.md) demonstrates Markdown conversion, structure preservation, and version-bound node reads (guide in Chinese).
+- [Complete examples](examples/README.md): the [structured document facts example](examples/structured-document-facts/README.md) is available. The [financial document RAG experiment](examples/financial-document-rag/README.md) is in development; its current v2 fact layer and real A/B retrieval indexes are complete (project guide in Chinese).
 - [Datasets](datasets/README.md): no standalone datasets published yet; the example includes an original fictional teaching fixture.
 
 ## Personal reflections

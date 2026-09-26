@@ -1,3 +1,0 @@
-# Explicit current fact and retrieval release snapshots; local working databases stay ignored.
-handoff/finance-facts-v2.sqlite filter=lfs diff=lfs merge=lfs -text
-handoff/finance-retrieval-v2.sqlite filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,50 @@
+[project]
+name = "financial-document-rag"
+version = "0.1.0"
+description = "Four controlled financial-document RAG experiments with auditable sources"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "docling-slim[convert-core,format-pdf,models-local]==2.120.1",
+  "docling-core[chunking-openai]==2.91.0",
+  "docling-parse==7.13.0",
+  "docling-ibm-models==3.14.0",
+  "pymupdf>=1.26,<1.28",
+  "numpy>=2,<3",
+  "httpx>=0.28,<0.29",
+  "lxml>=6.1,<7",
+  "sqlite-vec==0.1.9",
+  "python-dotenv==1.2.3",
+  "huggingface-hub>=0.34,<2",
+  "pyarrow>=20,<24",
+  "pydantic>=2.11,<3",
+  "tiktoken>=0.11,<1",
+  "opencv-python>=5.0.0.93", # share RapidOCR's cv2 package; avoid two wheels owning cv2
+]
+
+[project.scripts]
+finance-rag = "financial_rag.cli:main"
+
+[project.optional-dependencies]
+ocr = ["rapidocr==3.9.2"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/financial_rag"]
+
+[dependency-groups]
+dev = ["pytest>=8.3,<9", "ruff>=0.12,<1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["docling: real local Docling model integration (downloads weights on first use)"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

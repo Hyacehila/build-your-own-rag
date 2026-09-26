@@ -1,0 +1,23 @@
+name: Financial RAG docs
+
+on:
+  push:
+    paths:
+      - 'examples/financial-document-rag/**'
+      - '.github/workflows/financial-rag-docs.yml'
+  pull_request:
+    paths:
+      - 'examples/financial-document-rag/**'
+      - '.github/workflows/financial-rag-docs.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python examples/financial-document-rag/tools/check_docs.py

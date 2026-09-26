@@ -1,0 +1,7 @@
+# Fully offline fixture checks: no paid model configuration and no tokenizer download.
+work_dir = ".local/offline"
+
+[tokenizer]
+kind = "approx"
+name = "offline-rough-counter-v1"
+estimated = true

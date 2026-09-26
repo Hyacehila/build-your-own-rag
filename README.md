@@ -54,7 +54,7 @@ Build Your Own RAG 是一个带有鲜明个人风格的 RAG 教程。它面向�
 
 ## 示例与数据
 
-- [成品示例](examples/README.md)：已提供[结构化文档事实层示例](examples/structured-document-facts/README.md)，演示 Markdown 转换、结构保存与节点回读。
+- [成品示例](examples/README.md)：已提供[结构化文档事实层示例](examples/structured-document-facts/README.md)；[金融长文档 RAG 实验](examples/financial-document-rag/README.md)仍在开发，当前 v2 已完成事实层与真实 A/B 检索层。
 - [数据集](datasets/README.md)：尚未发布独立数据集；示例自带原创虚构教学夹具。
 
 ## 碎碎念
