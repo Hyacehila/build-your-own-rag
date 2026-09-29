@@ -114,7 +114,7 @@ def test_agent_hard_loop_caps_and_final_without_tools(configured):
     prepare_all(config, store)
     index = current_index(config, store, "enriched")
 
-    calls_per_batch = [5]
+    calls_per_batch = [6]
 
     def endless(path, body):
         if "tools" in body:
@@ -153,7 +153,7 @@ def test_agent_hard_loop_caps_and_final_without_tools(configured):
     worker = QuestionRunner(config, store, index, ModelAPI(config, store, "model-cap"))
     result = worker.run({"query_id": "limit", "query": "cash"}, "D")
     assert result["model_calls"] == 6
-    assert result["tool_calls"] == 6  # initial search + five tool-enabled planning calls
+    assert result["tool_calls"] == 8  # search + two seed reads + five planning calls
     assert result["status"] == "ok"
     config.query.agent_model_calls = 1
     worker = QuestionRunner(config, store, index, ModelAPI(config, store, "one-call"))

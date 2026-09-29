@@ -242,6 +242,8 @@ def chunk(config: Config, store: Store, kind: str) -> dict:
         "synthetic": manifest["synthetic"],
         "chunk_count": len(pieces),
     }
+    if kind == "enriched":
+        index["enrichment_retrieval_mode"] = config.enrichment.retrieval_mode
     index["id"] = digest({**index, "chunks": pieces})
     for i, piece in enumerate(pieces):
         piece["index_id"] = index["id"]
@@ -268,6 +270,8 @@ def current_index(config: Config, store: Store, kind: str) -> dict:
     if not iid:
         raise RagError(f"Run chunk --index {kind} first.")
     index = store.get("indices", iid)
+    if index.get("diagnostic_only"):
+        raise RagError("A partial diagnostic index cannot be used for formal experiments.")
     if index["signature"] != chunk_signature(config) or index["dataset_id"] != dataset(store)["id"]:
         raise RagError(f"Index {kind} is stale after configuration/code/data changes; rebuild it.")
     parser = "flat" if kind == "flat" else "structured"
@@ -275,6 +279,11 @@ def current_index(config: Config, store: Store, kind: str) -> dict:
         raise RagError(f"Index {kind} is stale after parsing; rebuild it.")
     if kind == "enriched":
         from .enrichment import enrichment_key
+
+        if index.get("enrichment_retrieval_mode", "replace") != config.enrichment.retrieval_mode:
+            raise RagError(
+                "Enrichment retrieval mode changed; rebuild enriched chunks (reuse cached summaries)."
+            )
 
         actual = [
             enrichment_key(config, n)

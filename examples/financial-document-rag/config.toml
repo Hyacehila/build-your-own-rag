@@ -20,20 +20,27 @@ table_headers = "multirow"
 source_scope = "fragment"
 
 [retrieval]
-sparse_k = 30
-dense_k = 30
+sparse_k = 50
+dense_k = 50
 rrf_k = 60
+final_k = 20
+group_sources = true
 
 [query]
-text_tokens = 8000
-page_images = 4
+text_tokens = 24000
+page_images = 8
 image_scale = 1.5
-direct_read_hits = 10
-agent_model_calls = 6
-agent_tool_calls = 8
-search_preview_tokens = 80
+direct_read_hits = 20
+agent_model_calls = 10
+agent_tool_calls = 20
+search_preview_tokens = 120
+preview_total_tokens = 3000
+read_max_tokens = 2400
+agent_seed_hits = 2
+asset_read_fragments = 3
 
 [enrichment]
+retrieval_mode = "additive"
 image_estimate_tokens = 180
 table_estimate_tokens = 220
 max_input_tokens = 12000
@@ -62,36 +69,43 @@ base_url = "https://api.deepseek.com"
 model = "deepseek-flash"
 api_key_env = "DEEPSEEK_API_KEY"
 timeout_seconds = 180
-retries = 1
+retries = 5
+json_retries = 5
 cache_revision = "1"
+
+json_mode = true
 
 [models.chat.request_params]
 thinking = { type = "enabled" }
 reasoning_effort = "low"
-max_tokens = 8192
+max_tokens = 16384
 
 [models.vision]
 base_url = "https://api.deepseek.com"
 model = "deepseek-flash"
 api_key_env = "DEEPSEEK_API_KEY"
 timeout_seconds = 180
-retries = 1
+retries = 5
+json_retries = 5
 cache_revision = "1"
 
 [models.vision.request_params]
 thinking = { type = "enabled" }
 reasoning_effort = "low"
-max_tokens = 4096
+max_tokens = 8192
 
 [models.judge]
 base_url = "https://api.deepseek.com"
 model = "deepseek-flash"
 api_key_env = "DEEPSEEK_API_KEY"
 timeout_seconds = 180
-retries = 1
+retries = 5
+json_retries = 5
 cache_revision = "1"
+
+json_mode = true
 
 [models.judge.request_params]
 thinking = { type = "enabled" }
 reasoning_effort = "low"
-max_tokens = 2048
+max_tokens = 8192

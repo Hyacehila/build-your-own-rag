@@ -15,6 +15,14 @@ def image_input(node: dict) -> bool:
     return node["kind"] == "picture" or (node["kind"] == "table" and not node["text"].strip())
 
 
+def _describe(api, role, messages):
+    def validate(message):
+        if not isinstance(message.get("content"), str) or not message["content"].strip():
+            raise ValueError("Empty retrieval description")
+
+    return api.validated_chat(role, messages, validate, json_output=False)["content"]
+
+
 def enrichment_key(config: Config, node: dict) -> str:
     role = config.models.vision if image_input(node) else config.models.chat
     return digest(
@@ -22,7 +30,7 @@ def enrichment_key(config: Config, node: dict) -> str:
             "stage": "enrichment",
             "node": node,
             "model": role.identity(),
-            "options": config.enrichment.model_dump(),
+            "options": config.enrichment.model_dump(exclude={"retrieval_mode"}),
             "contract": "asset-descriptions-with-empty-table-image-v2",
             "tokenizer": config.tokenizer.model_dump(),
             "image_scale": config.query.image_scale,
@@ -85,7 +93,7 @@ def enrich(config: Config, store: Store, node_ids: list[str] | None = None) -> d
                             },
                         }
                     )
-                answer = api.chat("vision", [{"role": "user", "content": parts}])["content"]
+                answer = _describe(api, "vision", [{"role": "user", "content": parts}])
                 segment_count = 1
             else:
                 input_mode = "table_text"
@@ -102,7 +110,7 @@ def enrich(config: Config, store: Store, node_ids: list[str] | None = None) -> d
                 )
                 for a, b in spans:
                     summaries.append(
-                        api.chat("chat", [{"role": "user", "content": prompt + node["text"][a:b]}])["content"]
+                        _describe(api, "chat", [{"role": "user", "content": prompt + node["text"][a:b]}])
                     )
                 segment_count = len(summaries)
                 # Hierarchical reduction prevents truncating later segments of large tables.
@@ -110,7 +118,8 @@ def enrich(config: Config, store: Store, node_ids: list[str] | None = None) -> d
                     joined = "\n\n".join(summaries)
                     groups = recursive_spans(joined, tokenizer, config.enrichment.max_input_tokens)
                     reduced = [
-                        api.chat(
+                        _describe(
+                            api,
                             "chat",
                             [
                                 {
@@ -120,7 +129,7 @@ def enrich(config: Config, store: Store, node_ids: list[str] | None = None) -> d
                                     + joined[a:b],
                                 }
                             ],
-                        )["content"]
+                        )
                         for a, b in groups
                     ]
                     if len(reduced) >= len(summaries):
@@ -150,12 +159,14 @@ def enrich(config: Config, store: Store, node_ids: list[str] | None = None) -> d
     return report
 
 
-def enriched_chunks(config: Config, store: Store, base: dict) -> tuple[list[dict], list[str]]:
-    # Body text is reused byte for byte. Asset entries replace table-row / caption-only entries.
+def enriched_chunks(
+    config: Config, store: Store, base: dict, *, diagnostic_partial=False
+) -> tuple[list[dict], list[str]]:
+    # Preserve original retrieval entrances; descriptions are additional pointers, never evidence.
     output = [
         {k: v for k, v in c.items() if k not in {"id", "index_id"}}
         for c in store.chunks(base["id"])
-        if c["kind"] not in ("table", "picture")
+        if config.enrichment.retrieval_mode == "additive" or c["kind"] not in ("table", "picture")
     ]
     enhancement_ids = []
     tokenizer = Tokenizer(config.tokenizer)
@@ -168,6 +179,8 @@ def enriched_chunks(config: Config, store: Store, base: dict) -> tuple[list[dict
             key = enrichment_key(config, node)
             record = store.cached(key)
             if record is None:
+                if diagnostic_partial:
+                    continue
                 raise RagError(
                     f"Missing enhancement for {node['ref']}; run enrich first (or estimate-embedding)."
                 )

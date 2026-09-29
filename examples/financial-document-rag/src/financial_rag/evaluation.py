@@ -56,7 +56,17 @@ def _judge(config: Config, store: Store, row: dict, label: dict) -> dict:
         return {**cached, "cached": True}
     api = ModelAPI(config, store, "judge:" + key)
     try:
-        message = api.chat(
+
+        def validate(message):
+            data = json.loads(message["content"])
+            if (
+                not isinstance(data, dict)
+                or not isinstance(data.get("correct"), bool)
+                or not isinstance(data.get("reason"), str)
+            ):
+                raise ValueError("Judge must return a boolean correct and a string reason.")
+
+        message = api.validated_chat(
             "judge",
             [
                 {
@@ -68,6 +78,7 @@ def _judge(config: Config, store: Store, row: dict, label: dict) -> dict:
                 },
                 {"role": "user", "content": canonical(task)},
             ],
+            validate,
         )
         data = json.loads(message["content"])
         if not isinstance(data.get("correct"), bool) or not isinstance(data.get("reason"), str):
@@ -126,6 +137,11 @@ def evaluate(config: Config, store: Store, run_id: str) -> dict:
                 "evidence_page_coverage": evidence_coverage(row["evidence"], label["qrels"]),
                 "citation_validity": row["citation_check"]["validity"],
             }
+            gold = {(p["doc_id"], p["page_index"]) for p in label["qrels"] if p["grade"] > 0}
+            searched = {(p["doc_id"], p["page_index"]) for p in row.get("searched_page_union", [])}
+            row["metrics"]["search_union_recall"] = (
+                (len(gold & searched) / len(gold) if gold else 0.0) if "searched_page_union" in row else None
+            )
             row["groups"] = {
                 "content_type": label.get("content_type") or ["unlabeled"],
                 "query_type": label.get("query_types") or ["unlabeled"],
@@ -149,7 +165,14 @@ def evaluate(config: Config, store: Store, run_id: str) -> dict:
     return meta
 
 
-METRICS = ["ndcg_at_10", "recall_at_5", "recall_at_10", "evidence_page_coverage", "citation_validity"]
+METRICS = [
+    "ndcg_at_10",
+    "recall_at_5",
+    "recall_at_10",
+    "evidence_page_coverage",
+    "citation_validity",
+    "search_union_recall",
+]
 
 
 def summarize(rows: list[dict]) -> list[dict]:
@@ -177,7 +200,7 @@ def summarize(rows: list[dict]) -> list[dict]:
             "citation_questions": sum(r["citation_check"]["total"] > 0 for r in values),
         }
         for metric in METRICS:
-            observed = [r["metrics"][metric] for r in values if r["metrics"][metric] is not None]
+            observed = [r["metrics"][metric] for r in values if r["metrics"].get(metric) is not None]
             result[metric] = mean(observed) if observed else None
             result[metric + "_n"] = len(observed)
         for metric in ("elapsed_seconds", "model_calls", "tool_calls"):

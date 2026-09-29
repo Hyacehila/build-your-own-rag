@@ -194,6 +194,19 @@ class Search:
             {**self.by_id[cid], "score": score}
             for cid, score in sorted(fused.items(), key=lambda x: (-x[1], x[0]))
         ]
+        raw_result = result
+        if cfg.group_sources:
+            grouped = {}
+            for hit in result:
+                # Group alternative descriptions/rows of ONE asset, not an entire PDF page.
+                # Distinct text fragments remain distinct, including same-node split spans.
+                assets = tuple(sorted(hit.get("asset_ids", [])))
+                key = ("asset", assets) if assets else ("fragment", hit["id"])
+                if key not in grouped:
+                    grouped[key] = {**hit, "matched_chunk_ids": []}
+                grouped[key]["matched_chunk_ids"].append(hit["id"])
+            result = list(grouped.values())
+        result = result[: cfg.final_k]
         self.trace.append(
             {
                 "tool": "search",
@@ -202,6 +215,8 @@ class Search:
                 "sparse": sparse,
                 "dense": dense,
                 "ranked_chunks": [{"id": c["id"], "score": c["score"]} for c in result],
+                "candidate_chunks": len(raw_result),
+                "source_groups_returned": len(result),
                 "page_ranking": page_ranking(result),
                 "seconds": time.perf_counter() - started,
             }

@@ -27,6 +27,8 @@ class Role(Strict):
     cache_revision: str = "1"
     timeout_seconds: float = Field(default=120, gt=0)
     retries: int = Field(default=2, ge=0, le=5)
+    json_retries: int = Field(default=5, ge=0, le=5)
+    json_mode: bool = False
     batch_size: int = Field(default=10, ge=1)
 
     @model_validator(mode="after")
@@ -148,19 +150,25 @@ class Parsing(Strict):
 
 
 class Retrieval(Strict):
-    sparse_k: int = Field(default=30, ge=1)
-    dense_k: int = Field(default=30, ge=1)
+    sparse_k: int = Field(default=50, ge=1)
+    dense_k: int = Field(default=50, ge=1)
     rrf_k: int = Field(default=60, ge=1)
+    final_k: int = Field(default=20, ge=1)
+    group_sources: bool = True
 
 
 class Query(Strict):
-    text_tokens: int = Field(default=8000, ge=1)
-    page_images: int = Field(default=4, ge=0)
+    text_tokens: int = Field(default=24000, ge=1)
+    page_images: int = Field(default=8, ge=0)
     image_scale: float = Field(default=1.5, gt=0, le=4)
-    direct_read_hits: int = Field(default=10, ge=1)
-    agent_model_calls: int = Field(default=6, ge=1)
-    agent_tool_calls: int = Field(default=8, ge=0)
-    search_preview_tokens: int = Field(default=80, ge=0)
+    direct_read_hits: int = Field(default=20, ge=1)
+    agent_model_calls: int = Field(default=10, ge=1)
+    agent_tool_calls: int = Field(default=20, ge=0)
+    search_preview_tokens: int = Field(default=120, ge=0)
+    preview_total_tokens: int = Field(default=3000, ge=0)
+    read_max_tokens: int = Field(default=2400, ge=1)
+    agent_seed_hits: int = Field(default=2, ge=0)
+    asset_read_fragments: int = Field(default=3, ge=1)
     direct_window_radius: int = Field(default=2, ge=0, le=8)
 
 
@@ -172,6 +180,7 @@ class Validation(Strict):
 
 
 class Enrichment(Strict):
+    retrieval_mode: Literal["additive", "replace"] = "additive"
     image_estimate_tokens: int = Field(default=180, ge=1)
     table_estimate_tokens: int = Field(default=220, ge=1)
     max_input_tokens: int = Field(default=12000, ge=100)

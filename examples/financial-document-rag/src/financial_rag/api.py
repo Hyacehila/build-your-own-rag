@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from typing import Any
 
@@ -13,7 +14,9 @@ from .storage import Store
 
 
 class APIError(RagError):
-    pass
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 def embedding_key(role: Role, text: str) -> str:
@@ -57,6 +60,12 @@ class ModelAPI:
     def _post(self, role_name: str, endpoint: str, payload: dict, retry: bool = True) -> dict:
         role = getattr(self.config.models, role_name)
         role.require(role_name)
+        account = (role.base_url.rstrip("/"), role.api_key_env)
+        if account in getattr(self.store, "billing_blocks", set()):
+            raise APIError(
+                "Provider billing blocked after HTTP 402; no new request sent. Resume in a new process after resolving billing.",
+                status_code=402,
+            )
         headers = {"Content-Type": "application/json"}
         if role.api_key_env:
             headers["Authorization"] = "Bearer " + os.environ[role.api_key_env]
@@ -67,6 +76,7 @@ class ModelAPI:
             reserve(self.config, self.context, role_name)
             start, status, usage = time.perf_counter(), None, None
             error = response_model = None
+            diagnostics = {}
             try:
                 if self.client is not None:
                     response = self.client.post(
@@ -92,9 +102,29 @@ class ModelAPI:
                     response_model = data.get("model") if isinstance(data.get("model"), str) else None
                     return data
                 error = f"HTTP {status}"
+                if status == 402:
+                    # Shared across chat/vision/judge in this Store session, never persisted
+                    # across a user-authorized restart after replenishing the account.
+                    self.store.billing_blocks = getattr(self.store, "billing_blocks", set()) | {account}
+                try:
+                    detail = response.json().get("error", {})
+                    if isinstance(detail, dict):
+                        diagnostics = {
+                            k: v
+                            for k, v in detail.items()
+                            if k in {"code", "type", "param"}
+                            and isinstance(v, str)
+                            and re.fullmatch(r"[A-Za-z0-9_.\[\]-]{1,100}", v)
+                        }
+                except (ValueError, AttributeError):
+                    pass
+                request_id = response.headers.get("x-request-id", "")
+                if re.fullmatch(r"[A-Za-z0-9_-]{1,100}", request_id):
+                    diagnostics["request_id"] = request_id
                 if status not in (408, 429, 500, 502, 503, 504) or attempt >= (role.retries if retry else 0):
                     raise APIError(
-                        f"{role_name}: {error}. Check endpoint/model/capabilities; response body omitted."
+                        f"{role_name}: {error}. Check endpoint/model/capabilities; response body omitted.",
+                        status_code=status,
                     )
             except httpx.RequestError as e:
                 error = type(e).__name__
@@ -118,6 +148,13 @@ class ModelAPI:
                         "error": error,
                         "seconds": time.perf_counter() - start,
                         "usage": usage,
+                        "diagnostics": diagnostics,
+                        "request_shape": {
+                            "messages": len(payload.get("messages", [])),
+                            "roles": [m.get("role") for m in payload.get("messages", [])],
+                            "tools": bool(payload.get("tools")),
+                            "max_tokens": body.get("max_tokens"),
+                        },
                     },
                 )
             time.sleep(min(2**attempt, 8))
@@ -189,10 +226,13 @@ class ModelAPI:
         tools: list[dict] | None = None,
         retry: bool = True,
         tool_choice=None,
+        json_output=False,
     ) -> dict:
         payload: dict = {"messages": messages, "stream": False}
         if tools:
             payload.update(tools=tools, tool_choice=tool_choice or "auto")
+        elif json_output:
+            payload["response_format"] = {"type": "json_object"}
         result = self._post(role_name, "/chat/completions", payload, retry=retry)
         try:
             choices = result["choices"]
@@ -225,6 +265,63 @@ class ModelAPI:
         except (KeyError, TypeError, ValueError) as e:
             self.store.call_validation_error(self.context, role_name, "Invalid chat response: " + str(e))
             raise APIError(f"Invalid chat response: {e}") from e
+
+    def validated_chat(self, role_name, messages, validate, tools=None, *, json_output=None):
+        """First request + at most five retries, without nested HTTP retries.
+
+        Validate before executing tools so retries cannot repeat tool side effects.
+        Logical agent turns and physical requests are counted separately.
+        """
+        role = getattr(self.config.models, role_name)
+        current = list(messages)
+        for attempt in range(max(role.json_retries, role.retries) + 1):
+            try:
+                message = self.chat(
+                    role_name,
+                    current,
+                    tools,
+                    retry=False,
+                    json_output=role.json_mode if json_output is None else json_output,
+                )
+                validate(message)
+                self.store.annotate_call(self.context, role_name, {"validation_attempt": attempt + 1})
+                return message
+            except (APIError, ValueError, TypeError, KeyError) as error:
+                self.store.annotate_call(
+                    self.context,
+                    role_name,
+                    {
+                        "validation_attempt": attempt + 1,
+                        "validation_error": type(error).__name__,
+                    },
+                )
+                code = getattr(error, "status_code", None)
+                if code is not None and code not in {408, 429, 500, 502, 503, 504}:
+                    raise
+                limit = (
+                    role.retries if isinstance(error, APIError) and code is not None else role.json_retries
+                )
+                if attempt >= limit:
+                    raise
+                if isinstance(error, APIError):
+                    time.sleep(min(2**attempt, 8))
+                else:
+                    # Preserve evidence and reasoning history; never replay malformed tools.
+                    instruction = (
+                        "Your previous response was empty or invalid. Return a complete, nonempty "
+                        "retrieval description using only the supplied source; do not invent facts."
+                        if json_output is False
+                        else "Your previous response failed format/citation validation. Return valid JSON "
+                        "matching the required schema, or valid tool arguments. Use only supplied "
+                        "evidence IDs; do not invent facts. No markdown fences."
+                    )
+                    current = [
+                        *messages,
+                        {
+                            "role": "user",
+                            "content": instruction,
+                        },
+                    ]
 
 
 def usage_summary(calls: list[dict]) -> dict:

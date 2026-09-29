@@ -78,7 +78,8 @@ def test_hybrid_heading_path_table_headers_and_original_read(local):
     assert all("2023 USD m" in c["text"] and "2024 USD m" in c["text"] for c in tables)
     assert all(c["headings"] == ["1. Performance", "1.1 Revenue by business unit"] for c in tables)
     reader = Reader(config, store, index)
-    result = reader.read(chunk_id=tables[-1]["id"])
+    tail = next(c for c in tables if "Test segment 24" in c["text"])
+    result = reader.read(chunk_id=tail["id"])
     assert "error" not in result
     assert any("Test segment 24" in e.get("text", "") for e in reader.evidence.values())
     assert reader.images

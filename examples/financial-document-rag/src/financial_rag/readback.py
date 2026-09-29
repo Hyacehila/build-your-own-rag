@@ -58,7 +58,7 @@ def select_nodes(store, parse_ids, anchors, mode, radius, depth):
                 r[0] for r in store.db.execute(base + "< ? ORDER BY reading_order DESC LIMIT ?", params)
             ]
             after = [r[0] for r in store.db.execute(base + "> ? ORDER BY reading_order LIMIT ?", params)]
-            selected = [*reversed(before), anchor, *after]
+            selected = [anchor, *before, *after]
         ids.extend(selected)
     # Associated captions/footnotes are themselves original nodes, never synthesized facts.
     output = []

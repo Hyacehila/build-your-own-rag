@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import re
 import time
 
 from .common import RagError, digest
@@ -33,7 +34,7 @@ def render_source(store: Store, source: dict, scale: float, crop: bool = False) 
 class Reader:
     """The shared source service and hard evidence budget for every arm.
 
-    Search previews and newly read source text consume the same text budget.
+    Search previews have a separate bounded budget; original evidence has its own budget.
     Citation IDs are minted only after actual text/image reads, never by search.
     Text source-page coverage is conservative for multi-page table nodes: a full
     table read covers all its pages; partial text with ambiguous page offsets
@@ -44,6 +45,10 @@ class Reader:
         self.config, self.store, self.index = config, store, index
         self.tokenizer = Tokenizer(config.tokenizer)
         self.text_used = 0
+        self.preview_used = 0
+        self.question = ""
+        self.retrieval_matches = {}
+        self._read_limit = config.query.text_tokens
         self.preview_cache: dict[str, str] = {}
         self.images: dict[str, str] = {}
         self.evidence: dict[str, dict] = {}
@@ -59,9 +64,13 @@ class Reader:
     def preview(self, chunk: dict) -> str:
         if chunk["id"] not in self.preview_cache:
             part = self.tokenizer.prefix(
-                chunk["text"], min(self.config.query.search_preview_tokens, self.remaining)
+                chunk["text"],
+                min(
+                    self.config.query.search_preview_tokens,
+                    max(0, self.config.query.preview_total_tokens - self.preview_used),
+                ),
             )
-            self.text_used += self.tokenizer.count(part)
+            self.preview_used += self.tokenizer.count(part)
             self.preview_cache[chunk["id"]] = part
         return self.preview_cache[chunk["id"]]
 
@@ -95,7 +104,9 @@ class Reader:
             or [len(text)]
         )
         read_key = digest([key, offset, "text"])
-        selected = self.tokenizer.prefix(text[offset:end_limit], self.remaining)
+        selected = self.tokenizer.prefix(
+            text[offset:end_limit], min(self.remaining, max(0, self._read_limit - self.text_used))
+        )
         if not selected:
             return {
                 "status": "text_budget_exhausted" if text[offset:] else "empty_text",
@@ -168,6 +179,56 @@ class Reader:
             result.extend(self._image(s) for s in node["sources"])
         return result
 
+    def _fragment(self, chunk: dict, include_images: bool, offset: int = 0) -> list[dict]:
+        """Read immutable original chunk text, never a generated retrieval description.
+
+        This keeps table headers with matching rows and uses already-localized body
+        provenance without incorrectly applying raw.orig offsets to normalized text.
+        """
+        if chunk.get("enrichment_id"):
+            raise RagError("Generated retrieval descriptions cannot become evidence.")
+        for nid in chunk["node_ids"]:
+            if self.store.get("nodes", nid)["parse_id"] not in self.index["parse_ids"]:
+                raise RagError("Fragment belongs to a different parse version.")
+        for source in chunk["sources"]:
+            self._document(source["doc_version"])
+        result = self._text("chunk:" + chunk["id"], chunk["text"], chunk["sources"], offset, chunk["kind"])
+        eid = result.get("evidence_id")
+        if eid:
+            evidence = self.evidence[eid]
+            evidence["chunk_id"] = chunk["id"]
+            evidence["read_scope"] = "original_fragment"
+            # Multi-page table rows lack exact cell-to-page spans: do not overclaim coverage.
+            if chunk["kind"] == "table" and len({s["page_index"] for s in chunk["sources"]}) > 1:
+                evidence["covered_sources"] = []
+        output = [
+            {**result, "chunk_id": chunk["id"], "node_ids": chunk["node_ids"], "continuation_scope": "chunk"}
+        ]
+        if include_images and chunk["kind"] in {"table", "picture"}:
+            output.extend(self._image(s) for s in chunk["sources"])
+        return output
+
+    def _original_fragments(self, chunk: dict) -> list[dict]:
+        if not chunk.get("enrichment_id"):
+            matches = self.retrieval_matches.get(chunk["id"], [chunk["id"]])
+            originals = [self.store.get("chunks", cid) for cid in matches]
+            return [c for c in originals if not c.get("enrichment_id")][
+                : self.config.query.asset_read_fragments
+            ]
+        assets = set(chunk.get("asset_ids", []))
+        candidates = [
+            c
+            for c in self.store.chunks(self.index["id"])
+            if not c.get("enrichment_id") and assets.intersection(c.get("asset_ids", []))
+        ]
+        terms = set(re.findall(r"\w+", self.question.lower()))
+        # A summary hit is a pointer to its source. Select original rows using the actual
+        # question, not benchmark labels or generated numbers; expose images as fallback.
+        candidates.sort(
+            key=lambda c: (-len(terms.intersection(re.findall(r"\w+", c["text"].lower()))), c["id"])
+        )
+        return candidates[: self.config.query.asset_read_fragments]
+
     def _page(self, version: str, page_index: int, offset: int, include_images: bool) -> list[dict]:
         import pymupdf
 
@@ -194,10 +255,11 @@ class Reader:
         page_index: int | None = None,
         offset: int = 0,
         include_images: bool = True,
-        mode: str = "node",
+        mode: str = "fragment",
         radius: int = 2,
         depth: int = 2,
         node_start: int = 0,
+        max_tokens: int | None = None,
     ) -> dict:
         started = time.perf_counter()
         target = {
@@ -211,11 +273,20 @@ class Reader:
             "radius": radius,
             "depth": depth,
             "node_start": node_start,
+            "max_tokens": max_tokens,
         }
         trace = {"tool": "read", "arguments": target}
         before = set(self.evidence)
         try:
             from .readback import select_nodes
+
+            if max_tokens is not None and (
+                isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1
+            ):
+                raise RagError("max_tokens must be a positive integer.")
+            self._read_limit = self.text_used + min(
+                max_tokens or self.config.query.read_max_tokens, self.config.query.read_max_tokens
+            )
 
             if not isinstance(node_start, int) or isinstance(node_start, bool) or node_start < 0:
                 raise RagError("node_start must be a nonnegative integer.")
@@ -227,20 +298,48 @@ class Reader:
                 chunk = self.store.get("chunks", chunk_id)
                 if chunk["index_id"] != self.index["id"]:
                     raise RagError("Chunk belongs to a different index.")
-                if self.index["kind"] == "flat":
+                if mode == "fragment":
+                    if offset and chunk.get("enrichment_id"):
+                        raise RagError(
+                            "Continue using the returned original chunk_id, not its generated summary."
+                        )
+                    originals = [chunk] if offset else self._original_fragments(chunk)
+                    result = [
+                        r for original in originals for r in self._fragment(original, include_images, offset)
+                    ]
+                    if not originals:
+                        # Captionless images still have an original source, never cite the summary.
+                        result = [
+                            r for nid in chunk["node_ids"] for r in self._node(nid, offset, include_images)
+                        ]
+                elif self.index["kind"] == "flat":
                     pages = {(s["doc_version"], s["page_index"]) for s in chunk["sources"]}
                     result = [r for v, p in sorted(pages) for r in self._page(v, p, offset, include_images)]
                 else:
                     expanded = select_nodes(
-                        self.store, self.index["parse_ids"], chunk["node_ids"], mode, radius, depth
+                        self.store,
+                        self.index["parse_ids"],
+                        chunk["node_ids"],
+                        "window" if mode == "context" else mode,
+                        radius,
+                        depth,
                     )
+                    if mode == "context":
+                        expanded = [nid for nid in expanded if nid not in chunk["node_ids"]]
             elif node_id:
-                expanded = select_nodes(self.store, self.index["parse_ids"], [node_id], mode, radius, depth)
+                expanded = select_nodes(
+                    self.store,
+                    self.index["parse_ids"],
+                    [node_id],
+                    "node" if mode == "fragment" else mode,
+                    radius,
+                    depth,
+                )
             else:
                 if page_index is None:
                     raise RagError("page_index is required and must be zero based.")
                 result = self._page(doc_version, page_index, offset, include_images)
-            if expanded or node_id or (chunk_id and self.index["kind"] != "flat"):
+            if expanded or node_id or (chunk_id and self.index["kind"] != "flat" and mode != "fragment"):
                 selected = expanded[node_start : node_start + 64]
                 next_node_start = node_start + 64 if len(expanded) > node_start + 64 else None
                 result = [r for nid in selected for r in self._node(nid, offset, include_images)]
@@ -250,6 +349,7 @@ class Reader:
                 "next_node_start": next_node_start,
                 "remaining_text_tokens": self.remaining,
                 "remaining_page_images": self.config.query.page_images - len(self.images),
+                "preview_tokens_used": self.preview_used,
             }
             trace["status"] = "ok"
         except (RagError, ValueError, TypeError, IndexError) as e:
