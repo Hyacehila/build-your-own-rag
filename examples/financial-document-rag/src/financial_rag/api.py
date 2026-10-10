@@ -14,9 +14,18 @@ from .storage import Store
 
 
 class APIError(RagError):
-    def __init__(self, message, status_code=None):
+    def __init__(self, message, status_code=None, diagnostics=None):
         super().__init__(message)
         self.status_code = status_code
+        self.diagnostics = diagnostics or {}
+
+
+def fatal_provider_error(error: Exception) -> bool:
+    from .budget import BudgetExhausted
+
+    return isinstance(error, BudgetExhausted) or (
+        isinstance(error, APIError) and error.status_code in {401, 402, 403}
+    )
 
 
 def embedding_key(role: Role, text: str) -> str:
@@ -70,10 +79,12 @@ class ModelAPI:
         if role.api_key_env:
             headers["Authorization"] = "Bearer " + os.environ[role.api_key_env]
         body = {**role.request_params, "model": role.model, **payload}
+        request_key = (self.store.save_request_payload(body)
+                       if self.config.query.audit_requests else None)
         for attempt in range((role.retries if retry else 0) + 1):
-            from .budget import reserve
+            from .budget import complete, reserve
 
-            reserve(self.config, self.context, role_name)
+            reservation = reserve(self.config, self.context, role_name)
             start, status, usage = time.perf_counter(), None, None
             error = response_model = None
             diagnostics = {}
@@ -116,6 +127,17 @@ class ModelAPI:
                             and isinstance(v, str)
                             and re.fullmatch(r"[A-Za-z0-9_.\[\]-]{1,100}", v)
                         }
+                        # Capture only numeric capacity facts, never an echoed prompt,
+                        # raw provider message, authentication header or credential.
+                        message = detail.get('message', '')
+                        if isinstance(message, str):
+                            for name, pattern in {
+                                'context_window_tokens': r'maximum context length is\s+(\d+)\s+tokens',
+                                'requested_output_tokens': r'requested\s+(\d+)\s+output tokens',
+                                'input_tokens_at_least': r'at least\s+(\d+)\s+input tokens',
+                            }.items():
+                                match = re.search(pattern, message, re.I)
+                                if match: diagnostics[name] = int(match[1])
                 except (ValueError, AttributeError):
                     pass
                 request_id = response.headers.get("x-request-id", "")
@@ -125,6 +147,7 @@ class ModelAPI:
                     raise APIError(
                         f"{role_name}: {error}. Check endpoint/model/capabilities; response body omitted.",
                         status_code=status,
+                        diagnostics=diagnostics,
                     )
             except httpx.RequestError as e:
                 error = type(e).__name__
@@ -155,8 +178,10 @@ class ModelAPI:
                             "tools": bool(payload.get("tools")),
                             "max_tokens": body.get("max_tokens"),
                         },
+                        **({"request_payload_sha256": request_key} if request_key else {}),
                     },
                 )
+                complete(self.config, reservation, status, usage)
             time.sleep(min(2**attempt, 8))
         raise APIError("Request failed")
 
@@ -166,6 +191,11 @@ class ModelAPI:
             role.require("embedding")
         unique = {embedding_key(role, t): t for t in texts}
         vectors = {key: self.store.vector(key) for key in unique}
+        fallback = getattr(self.store, "source_store", None)
+        if fallback is not None:
+            for key in unique:
+                if vectors[key] is None:
+                    vectors[key] = fallback.vector(key)
         missing = [key for key in unique if vectors[key] is None]
         if missing:
             role.require("embedding")
@@ -266,7 +296,8 @@ class ModelAPI:
             self.store.call_validation_error(self.context, role_name, "Invalid chat response: " + str(e))
             raise APIError(f"Invalid chat response: {e}") from e
 
-    def validated_chat(self, role_name, messages, validate, tools=None, *, json_output=None):
+    def validated_chat(self, role_name, messages, validate, tools=None, *, json_output=None, tool_choice=None,
+                       prepare_request=None, repair_instruction=None):
         """First request + at most five retries, without nested HTTP retries.
 
         Validate before executing tools so retries cannot repeat tool side effects.
@@ -276,11 +307,13 @@ class ModelAPI:
         current = list(messages)
         for attempt in range(max(role.json_retries, role.retries) + 1):
             try:
+                if prepare_request: current = prepare_request(current, tools)
                 message = self.chat(
                     role_name,
                     current,
                     tools,
                     retry=False,
+                    tool_choice=tool_choice,
                     json_output=role.json_mode if json_output is None else json_output,
                 )
                 validate(message)
@@ -315,6 +348,7 @@ class ModelAPI:
                         "matching the required schema, or valid tool arguments. Use only supplied "
                         "evidence IDs; do not invent facts. No markdown fences."
                     )
+                    if repair_instruction: instruction = repair_instruction
                     current = [
                         *messages,
                         {
@@ -330,7 +364,7 @@ def usage_summary(calls: list[dict]) -> dict:
         values = [c for c in calls if c["role"] == role]
         roles[role] = {
             "requests": len(values),
-            "failed_requests": sum(bool(c["error"]) for c in values),
+            "failed_requests": sum(bool(c["error"]) or bool(c.get("validation_error")) for c in values),
             "usage_missing_requests": sum(c["usage"] is None for c in values),
         }
         for name in ("prompt_tokens", "completion_tokens", "total_tokens"):

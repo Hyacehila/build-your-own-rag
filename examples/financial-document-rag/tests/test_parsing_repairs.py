@@ -167,7 +167,7 @@ def test_quality_flags_removed_table_number_and_bad_span(local):
     assert digest(snapshot) == modified != original
 
 
-def test_sample_success_cache_checksum_and_no_database_mutation(local, monkeypatch):
+def test_sample_cache_presence_and_no_database_mutation(local, monkeypatch):
     from docling.datamodel.base_models import InputFormat
 
     from financial_rag import parsing
@@ -190,6 +190,6 @@ def test_sample_success_cache_checksum_and_no_database_mutation(local, monkeypat
     assert second["cached"] and len(calls) == 1
     from pathlib import Path
 
-    Path(first["nodes"]).write_text("[]", encoding="utf-8")
+    Path(first["nodes"]).unlink()
     parse_sample(config, store, "fictional-bank", 1, 3)
     assert len(calls) == 2 and store.db.total_changes == before

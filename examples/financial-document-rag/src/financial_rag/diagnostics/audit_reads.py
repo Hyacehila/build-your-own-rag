@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 
 import pymupdf
 
@@ -61,7 +60,7 @@ def check_reads(config, store, indices, details, issues):
                         .tobytes("png")
                     )
                 actual = base64.b64decode(evidence["data_url"].split(",", 1)[1])
-                if hashlib.sha256(expected).digest() != hashlib.sha256(actual).digest():
+                if expected != actual:
                     errors.append("returned image differs from rendering original physical page")
         citations = validate_citations(list(reader.evidence), reader.public_evidence())
         if not reader.evidence or citations["invalid"]:

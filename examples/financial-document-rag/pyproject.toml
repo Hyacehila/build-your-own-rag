@@ -1,7 +1,7 @@
 [project]
 name = "financial-document-rag"
 version = "0.1.0"
-description = "Four controlled financial-document RAG experiments with auditable sources"
+description = "Five controlled financial-document RAG experiments with auditable sources"
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "docling-slim[convert-core,format-pdf,models-local]==2.120.1",

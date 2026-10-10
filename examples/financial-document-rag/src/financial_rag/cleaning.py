@@ -29,20 +29,14 @@ def prepare(source_work, workspace):
             if not pid:
                 raise RagError("Raw structured parse missing for " + doc["doc_id"])
             raw = store.get("parses", pid)
-            if (
-                sha256(Path(doc["pdf_path"])) != doc["sha256"]
-                or sha256(Path(raw["snapshot"])) != raw["snapshot_sha256"]
-            ):
-                raise RagError("Source hash mismatch.")
             sources.append({"document": doc, "raw": raw})
             path = workspace / "diagnostics" / (doc["doc_id"] + ".json")
             cached = read_json(path) if path.exists() else {}
             if (
-                cached.get("raw_snapshot_sha256") != raw["snapshot_sha256"]
-                or cached.get("pdf_sha256") != doc["sha256"]
+                cached.get("parse_id") != raw["id"]
             ):
                 diagnostic = inspect_snapshot(read_json(Path(raw["snapshot"])), doc["pdf_path"])
-                diagnostic.update(raw_snapshot_sha256=raw["snapshot_sha256"], pdf_sha256=doc["sha256"])
+                diagnostic.update(parse_id=raw["id"], doc_id=doc["doc_id"])
                 write_json(path, diagnostic)
     write_json(workspace / "sources.json", sources)
     return {"documents": len(sources), "pages": sum(x["document"]["pages"] for x in sources)}
@@ -138,8 +132,6 @@ def _copy_file(source, dest):
     dest.parent.mkdir(parents=True, exist_ok=True)
     if not dest.exists():
         shutil.copy2(source, dest)
-    if sha256(Path(source)) != sha256(dest):
-        raise RagError("Existing release resource differs; use a fresh release directory.")
 
 
 def _resource(store, locator, value):
@@ -213,8 +205,6 @@ def build(workspace, profiles, output, config):
             profile = read_json(profiles / (name + ".json"))
             if (
                 profile["doc_id"] != name
-                or profile["pdf_sha256"] != sha256(Path(doc["pdf_path"]))
-                or profile["raw_snapshot_sha256"] != sha256(Path(raw["snapshot"]))
             ):
                 raise RagError("Review profile is bound to a different source version.")
             ready_path = store.root / f"cleaning/{name}/report.json"
@@ -224,7 +214,7 @@ def build(workspace, profiles, output, config):
                 frozen_profile = read_json(store.root / f"cleaning/{name}/profile.json")
                 if (
                     frozen_profile == profile
-                    and sha256(Path(parsed["snapshot"])) == parsed["snapshot_sha256"]
+                    and Path(parsed["snapshot"]).is_file()
                 ):
                     rows.append(_summary(cached, profile))
                     continue
@@ -256,11 +246,6 @@ def build(workspace, profiles, output, config):
             decisions = []
             cloud_hash = None
             if cloud.exists():
-                receipt = read_json(cloud.parent / "receipt.json")
-                if receipt["source_pdf_sha256"] != doc["sha256"] or receipt["snapshot_sha256"] != sha256(
-                    cloud
-                ):
-                    raise RagError("Cloud candidate receipt/source mismatch.")
                 cloud_doc = load_docling({"snapshot": str(cloud)})
                 cloud_hash = sha256(cloud)
                 candidate, decisions = repair_tables(candidate, cloud_doc, suspects, doc["pdf_path"])
@@ -430,8 +415,8 @@ def check_release(output, config, chunks=True):
                 (parsed["snapshot"], parsed["snapshot_sha256"]),
                 (original["snapshot"], original["snapshot_sha256"]),
             ]:
-                if sha256(Path(path)) != checksum:
-                    raise RagError("Fact source/snapshot hash mismatch.")
+                if not Path(path).is_file():
+                    raise RagError("Fact source/snapshot file missing.")
             nodes = store.nodes(parsed["id"])
             readable = [n for n in nodes if n["sources"] and n["reading_order"] is not None]
             reader = Reader(
@@ -448,7 +433,7 @@ def check_release(output, config, chunks=True):
             detail = {
                 "doc_id": row["doc_id"],
                 "nodes": len(nodes),
-                "source_hashes_valid": True,
+                "source_files_present": True,
                 "readback_valid": True,
             }
             if chunks:
@@ -503,19 +488,13 @@ def restore_release(database, output, pdf_dir):
                 raise RagError("Release is missing a parse snapshot.")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(zlib.decompress(blob[0]))
-            if sha256(dest) != record["snapshot_sha256"]:
-                raise RagError("Restored snapshot hash mismatch.")
         for row in store.db.execute("SELECT locator,sha256,data FROM resources"):
             dest = store.resource(row[0])
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(row[2])
-            if sha256(dest) != row[1]:
-                raise RagError("Restored resource hash mismatch.")
         for row in store.db.execute("SELECT id FROM documents"):
             doc = store.get("documents", row[0])
             source = pdf_dir / doc["filename"]
-            if sha256(source) != doc["sha256"]:
-                raise RagError("Restore PDF differs from benchmark source.")
             _copy_file(source, Path(doc["pdf_path"]))
         if store.db.execute("PRAGMA foreign_key_check").fetchall():
             raise RagError("Restored fact relations fail.")

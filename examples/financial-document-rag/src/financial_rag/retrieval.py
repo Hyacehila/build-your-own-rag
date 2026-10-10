@@ -149,7 +149,8 @@ class Search:
         self.chunks = store.chunks(index["id"])
         self.by_id = {c["id"]: c for c in self.chunks}
         self.model_id = digest(config.models.embedding.identity())
-        store.map_vectors(index["id"], config.models.embedding)
+        if not store.read_only:
+            store.map_vectors(index["id"], config.models.embedding)
         dims = store.db.execute(
             """SELECT DISTINCT e.dimensions FROM chunks c
             JOIN chunk_vectors m ON m.chunk_id=c.id AND m.model_id=?
@@ -161,28 +162,40 @@ class Search:
         self.dimensions = dims[0][0]
         self.trace = []
 
-    def search(self, query: str) -> list[dict]:
+    def search(self, query: str, doc_ids: list[str] | None = None, *, coverage_selector=None, final_k=None) -> list[dict]:
         started = time.perf_counter()
         if not isinstance(query, str) or not query.strip():
             raise RagError("Search query must be nonempty text.")
         cfg = self.config.retrieval
+        limit = cfg.final_k if final_k is None else final_k
+        if limit < 1:
+            raise RagError('Search result limit must be positive')
         qv = self.api.embed([query])[0]
         if len(qv) != self.dimensions:
             raise RagError("Query vector dimensions differ from index; check model/cache_revision.")
-        dense = [r["id"] for r in self.store.dense(self.index["id"], self.model_id, qv, cfg.dense_k)]
+        dense_args = (self.index["id"], self.model_id, qv, cfg.dense_k)
+        dense = [r["id"] for r in (self.store.dense(*dense_args, doc_ids=doc_ids)
+                                    if doc_ids else self.store.dense(*dense_args))]
         # Quote individual tokens; never execute user-supplied FTS5 syntax.
         terms = list(dict.fromkeys(re.findall(r"\w+", query.lower())))[:64]
         expression = " OR ".join('"' + t + '"' for t in terms)
         # Separate FTS tables keep BM25 corpus statistics independent across A/B/C.
         fts = self.store.fts_name(self.index["id"])
+        scope = ""
+        sparse_params = [expression]
+        if doc_ids:
+            scope = (" AND id IN (SELECT id FROM chunks WHERE json_extract(payload,'$.sources[0].doc_id') IN ("
+                     + ",".join("?" for _ in doc_ids) + "))")
+            sparse_params.extend(doc_ids)
+        sparse_params.append(cfg.sparse_k)
         sparse = (
             []
             if not expression
             else [
                 r[0]
                 for r in self.store.db.execute(
-                    f"SELECT id FROM {fts} WHERE {fts} MATCH ? ORDER BY bm25({fts}),id LIMIT ?",
-                    (expression, cfg.sparse_k),
+                    f"SELECT id FROM {fts} WHERE {fts} MATCH ?{scope} ORDER BY bm25({fts}),id LIMIT ?",
+                    sparse_params,
                 )
             ]
         )
@@ -195,18 +208,26 @@ class Search:
             for cid, score in sorted(fused.items(), key=lambda x: (-x[1], x[0]))
         ]
         raw_result = result
-        if cfg.group_sources:
+        coverage_log = None
+        if coverage_selector is not None:
+            result, coverage_log = coverage_selector(result, limit)
+            for entry in coverage_log:
+                cid = entry['candidate_id']
+                entry['sparse_rank'] = sparse.index(cid)+1 if cid in sparse else None
+                entry['dense_rank'] = dense.index(cid)+1 if cid in dense else None
+        elif cfg.group_sources:
             grouped = {}
             for hit in result:
                 # Group alternative descriptions/rows of ONE asset, not an entire PDF page.
                 # Distinct text fragments remain distinct, including same-node split spans.
                 assets = tuple(sorted(hit.get("asset_ids", [])))
-                key = ("asset", assets) if assets else ("fragment", hit["id"])
+                key = (("asset", assets) if assets else
+                       ("source_set", tuple(hit.get("source_chunk_ids", [hit["id"]]))))
                 if key not in grouped:
                     grouped[key] = {**hit, "matched_chunk_ids": []}
                 grouped[key]["matched_chunk_ids"].append(hit["id"])
             result = list(grouped.values())
-        result = result[: cfg.final_k]
+        result = result[:limit]
         self.trace.append(
             {
                 "tool": "search",
@@ -217,8 +238,11 @@ class Search:
                 "ranked_chunks": [{"id": c["id"], "score": c["score"]} for c in result],
                 "candidate_chunks": len(raw_result),
                 "source_groups_returned": len(result),
+                "final_k": limit,
                 "page_ranking": page_ranking(result),
                 "seconds": time.perf_counter() - started,
+                **({'coverage_selection': coverage_log, 'rrf_k': cfg.rrf_k} if coverage_log is not None else {}),
+                **({"document_scope": doc_ids} if doc_ids else {}),
             }
         )
         return result

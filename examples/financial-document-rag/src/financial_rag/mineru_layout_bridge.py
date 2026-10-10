@@ -19,7 +19,7 @@ from docling_core.types.doc import (
 )
 from PIL import Image
 
-from .common import RagError, digest, read_json, sha256, write_json
+from .common import RagError, digest, read_json, write_json
 from .mineru_bridge import html_table_data
 
 
@@ -61,8 +61,6 @@ def convert_document(bundle, original, output, boundaries):
     results = read_json(bundle / "results.json")
     if not results["complete"] or any(r["state"] != "done" for r in results["results"]):
         raise RagError("Full comparison requires every packet to finish successfully.")
-    if sha256(Path(original["pdf_path"])) != manifest["original_sha256"]:
-        raise RagError("Original PDF differs from the submitted version.")
     document = DoclingDocument(name=original["doc_id"])
     with pymupdf.open(original["pdf_path"]) as pdf:
         for page in pdf:
@@ -81,8 +79,6 @@ def convert_document(bundle, original, output, boundaries):
     for entry in manifest["files"]:
         result = result_by_id[entry["data_id"]]
         archive_path = Path(result["zip_file"])
-        if sha256(archive_path) != result["sha256"]:
-            raise RagError("Cloud result checksum differs.")
         with zipfile.ZipFile(archive_path) as archive:
             layout = json.loads(archive.read("layout.json"))
             if layout.get("_version_name") != "3.4.4" or len(layout.get("pdf_info", [])) != len(

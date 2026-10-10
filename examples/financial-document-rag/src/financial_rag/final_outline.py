@@ -48,8 +48,6 @@ def heading_rows(nodes):
 
 def outline(store, row):
     parsed = store.get("parses", row["parse_id"])
-    if sha256(Path(parsed["snapshot"])) != parsed["snapshot_sha256"]:
-        raise RagError("Final outline snapshot hash mismatch.")
     rows = heading_rows(store.nodes(parsed["id"]))
     return {
         "contract": REVIEW_CONTRACT,
@@ -99,7 +97,7 @@ def packets(root, output, size=100):
 
 
 def validate_review(data, receipt, page_count):
-    for key in ("contract", "doc_id", "parse_id", "snapshot_sha256", "outline_sha256"):
+    for key in ("contract", "doc_id", "parse_id"):
         if receipt.get(key) != data[key]:
             raise RagError(f"Final outline review has stale or missing {key}.")
     if not isinstance(receipt.get("reviewer"), str) or not receipt["reviewer"].strip():
@@ -141,7 +139,6 @@ def validate_review(data, receipt, page_count):
         "headings_reviewed": len(refs),
         "expected_relations": len(expected),
         "uncertain_exceptions": len(receipt["uncertain_exceptions"]),
-        "receipt_sha256": digest(receipt),
     }
 
 
@@ -158,13 +155,10 @@ def verify_stored_acceptance(store):
         ).fetchone()
         if not resource:
             raise RagError("Missing final outline review receipt.")
-        import hashlib
         import json
 
-        if hashlib.sha256(resource[1]).hexdigest() != resource[0]:
-            raise RagError("Stored review resource checksum mismatch.")
         results.append(validate_review(outline(store, row), json.loads(resource[1]), row["source_pages"]))
-    if results != accepted["documents"]:
+    if results != [{k:v for k,v in row.items() if k!="receipt_sha256"} for row in accepted["documents"]]:
         raise RagError("Final outline acceptance metadata differs from its receipts.")
     return accepted
 

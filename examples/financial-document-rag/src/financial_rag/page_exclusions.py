@@ -8,7 +8,7 @@ from copy import deepcopy
 
 from docling_core.types.doc import DoclingDocument
 
-from .common import RagError, digest
+from .common import RagError
 
 CONTRACT = "reviewed-page-exclusions-v1"
 ITEM_LISTS = ("groups", "texts", "pictures", "tables", "key_value_items", "form_items")
@@ -86,7 +86,7 @@ def exclude_pages(document, page_numbers):
     candidate = DoclingDocument.model_validate(result)
     actual = {x["self_ref"]: x for name in ITEM_LISTS for x in result[name]}
     for old, new in mapping.items():
-        if old in items and digest(item_content(items[old])) != digest(item_content(actual[new])):
+        if old in items and item_content(items[old]) != item_content(actual[new]):
             raise RagError("Page exclusion changed retained text, table data or provenance.")
     if set(candidate.pages) != set(document.pages):
         raise RagError("Page exclusion changed physical page identities.")

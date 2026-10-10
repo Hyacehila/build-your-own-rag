@@ -6,7 +6,6 @@ import pytest
 
 from financial_rag.api import APIError, ModelAPI
 from financial_rag.chunking import chunk, current_index
-from financial_rag.common import RagError
 from financial_rag.enrichment import _describe, enrich, enrichment_key
 from financial_rag.evaluation import summarize
 from financial_rag.retrieval import Search, embed_index
@@ -80,7 +79,7 @@ def test_tail_rows_survive_small_budget_and_previews_do_not_spend_evidence(local
     assert reader.text_used == 0
     assert reader.preview_used <= config.query.preview_total_tokens
     reader.read(chunk_id=target["id"], include_images=False)
-    assert any("Test segment 24" in e["text"] for e in reader.evidence.values())
+    assert any("Test segment 24" in e.get("text", "") for e in reader.evidence.values())
     assert reader.text_used <= config.query.text_tokens
     assert all(e["read_scope"] == "original_fragment" for e in reader.evidence.values())
 
@@ -111,18 +110,19 @@ def test_additive_enrichment_preserves_originals_and_never_cites_summary(configu
     copies = store.chunks(enriched["id"])
     assert {c["text"] for c in originals} <= {c["text"] for c in copies if not c.get("enrichment_id")}
     summary = next(c for c in copies if c.get("enrichment_id") and c["kind"] == "table")
-    reader = Reader(config, store, enriched)
+    from financial_rag.evidence_packet import OriginalCatalog
+    reader = Reader(config, store, base)
     reader.question = "Test segment 24 2024"
-    reader.read(chunk_id=summary["id"], include_images=False)
+    OriginalCatalog(store, base).assemble(reader, [summary], enriched)
     assert reader.evidence
     assert all(e.get("chunk_id") != summary["id"] for e in reader.evidence.values())
-    assert any("Test segment 24" in e["text"] for e in reader.evidence.values())
+    assert any("Test segment 24" in e.get("text", "") for e in reader.evidence.values())
     node = store.get("nodes", summary["asset_ids"][0])
     key = enrichment_key(config, node)
-    config.enrichment.retrieval_mode = "replace"
-    assert enrichment_key(config, node) == key  # Retrieval policy does not regenerate paid descriptions.
-    with pytest.raises(RagError, match="mode changed"):
-        current_index(config, store, "enriched")
+    from financial_rag.config import Enrichment
+    with pytest.raises(ValueError):
+        Enrichment(retrieval_mode="replace")
+    assert enrichment_key(config, node) == key
 
 
 @pytest.mark.parametrize("recover", [True, False])
@@ -194,9 +194,8 @@ def test_source_grouping_retains_matched_rows_and_a_uses_only_chunks(configured)
     assert result["page_images_read"] == 0
     assert all(e["read_scope"] == "original_fragment" for e in result["evidence"])
     worker = QuestionRunner(config, store, index, ModelAPI(config, store, "source-locators"))
-    _, payload = worker._search("revenue", previews=True)
-    assert payload["page_index_origin"] == 0
-    for hit in payload["hits"]:
+    hits = worker.search("revenue")
+    for hit in hits:
         for source in hit["sources"]:
-            doc = store.get("documents", payload["documents"][source["doc_id"]])
+            doc = store.get("documents", source["doc_version"])
             assert 0 <= source["page_index"] < doc["pages"]

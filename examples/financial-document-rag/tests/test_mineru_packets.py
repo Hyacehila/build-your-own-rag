@@ -49,10 +49,10 @@ def test_document_trial_maps_excluded_pages_and_reserves_once(local, tmp_path, m
     assert read_json(bundle / "job.json")["state"] == "submitted"
 
 
-def test_document_trial_rejects_changed_source_and_oversized_packets(local, tmp_path):
+def test_document_trial_rejects_wrong_document_and_oversized_packets(local, tmp_path):
     _, store = local
     doc = store.meta("dataset")["documents"][0]
-    annotation = {"doc_id": doc["doc_id"], "pdf_sha256": "wrong", "pages": []}
+    annotation = {"doc_id": "wrong-document", "pdf_sha256": "ignored-legacy-checksum", "pages": []}
     with pytest.raises(RagError, match="another PDF"):
         prepare_document(doc, annotation, tmp_path)
     with pytest.raises(RagError, match="200-page"):

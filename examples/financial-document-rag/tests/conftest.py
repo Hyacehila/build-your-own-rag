@@ -49,6 +49,8 @@ class FakeAPI:
             content = json.dumps(
                 {"correct": True, "reason": "Fabricated judge output for protocol test only"}
             )
+        elif isinstance(messages[0].get("content"), str) and messages[0]["content"].startswith("Rewrite the user request"):
+            content = json.dumps({"query": messages[1]["content"], "requested_items": [messages[1]["content"]]})
         elif "tools" in body and not re.search(r"\[E\d+\]", text):
             initial = next(
                 m["content"]
@@ -89,6 +91,15 @@ class FakeAPI:
             )
         else:
             content = "Fictional revenue table or chart. Business units, 2023 and 2024; USD million."
+        if 'coverage must contain' in text or 'coverage has one entry' in text:
+            value=json.loads(content)
+            items=next(json.loads(p['text'].split('Requested items: ',1)[1])
+                for m in messages if isinstance(m.get('content'),list)
+                for p in m['content'] if p.get('type')=='text' and p.get('text','').startswith('Requested items: '))
+            value['coverage']=[{'item_id':x['item_id'],'status':'supported' if value['citations'] else 'not_found',
+                'evidence_ids':value['citations'],'scope_check':'Fictional test scope only',
+                'gaps':'' if value['citations'] else 'No fictional evidence'} for x in items]
+            content=json.dumps(value)
         return 200, {
             "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": content}}],
             "usage": usage,
@@ -151,4 +162,11 @@ def configured(local, fake):
     config, store = local
     for name in ("embedding", "chat", "vision", "judge"):
         setattr(config.models, name, Role(base_url=fake.url, model="synthetic-" + name, retries=0))
+    config.models.chat.request_params = {"max_tokens": 1024}
+    proof = config.work_dir / "synthetic-capacity.json"
+    proof.write_text(json.dumps({"model": config.models.chat.model, "base_url": fake.url,
+        "verification": "operator_configuration", "source_reference": "Loopback-only fake test service; not a provider capability claim",
+        "context_window_tokens": 1000000, "image_token_upper_bound": 4096,
+        "message_overhead_tokens": 16, "request_overhead_tokens": 64, "text_encoding": "cl100k_base"}))
+    config.query.capacity_evidence_path = proof
     return config, store, fake

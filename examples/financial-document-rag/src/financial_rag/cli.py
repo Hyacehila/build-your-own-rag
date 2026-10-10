@@ -16,7 +16,7 @@ from .storage import Store
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Financial document RAG: data preparation, four-arm experiments, and diagnostics.",
+        description="Financial document RAG: data preparation, five-arm experiments, and diagnostics.",
         epilog="Run '<command> --help' for options. Fact releases use 'python -m "
         "financial_rag.cleaning'; retrieval releases use 'python -m financial_rag.retrieval_release'.",
     )
@@ -40,6 +40,13 @@ def main(argv=None) -> int:
     if args.command == "run" and args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
     try:
+        if getattr(args, 'plan', None):
+            import importlib
+            import sys
+            sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'tools'))
+            module=importlib.import_module({'run':'contract_experiment','evaluate':'experiment_score','report':'experiment_report'}[args.command])
+            module.main(argv=['--plan',str(args.plan)])
+            return 0
         config = load_config(args.config)
         with Store(config.work_dir, read_only=args.read_only) as store:
             result = args.handler(args, config, store)

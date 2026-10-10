@@ -1,4 +1,5 @@
 from __future__ import annotations
+from financial_rag.chunking import chunk
 
 import json
 from pathlib import Path
@@ -38,7 +39,7 @@ def test_embedding_estimate_works_before_structured_index(local):
     assert result["indices"][2]["status"] == "not_chunked"
 
 
-def test_verified_model_bundle_rejects_changed_weights(tmp_path):
+def test_model_bundle_checks_presence_without_checksum(tmp_path):
     from financial_rag.common import write_json
     from financial_rag.models import verify_models
 
@@ -47,6 +48,8 @@ def test_verified_model_bundle_rejects_changed_weights(tmp_path):
     write_json(tmp_path / "manifest.json", {"files": [{"path": weight.name, "sha256": sha256(weight)}]})
     assert verify_models(tmp_path)
     weight.write_bytes(b"changed weights")
+    assert verify_models(tmp_path)
+    weight.unlink()
     with pytest.raises(RagError, match="changed or are incomplete"):
         verify_models(tmp_path)
 
@@ -94,6 +97,7 @@ def test_empty_table_region_uses_original_image_and_vision_identity(configured):
     table = next(n for n in nodes if n["kind"] == "table")
     table["text"] = ""
     store.put_parse(parsed, nodes)
+    chunk(config, store, "structured")
     result = enrich(config, store)
     assert not result["failed"]
     assert result["empty_table_image_fallbacks"] == [table["id"]]
@@ -151,7 +155,7 @@ def test_parse_failure_is_persisted_and_blocks_index(local, monkeypatch):
         active_parses(config, store, "structured")
 
 
-def test_download_validates_upstream_hashes_and_joins_full_mapping(local, monkeypatch):
+def test_download_checks_size_and_joins_full_mapping(local, monkeypatch):
     import huggingface_hub
 
     import financial_rag.dataset as module
@@ -229,5 +233,8 @@ def test_download_validates_upstream_hashes_and_joins_full_mapping(local, monkey
     with pdf.open("r+b") as f:
         f.seek(-8, 2)
         f.write(b"BAD")
-    with pytest.raises(RagError, match="SHA-256 mismatch"):
-        download(config, store)
+    from financial_rag.dataset import _verify_download
+    # A wrong historical checksum is ignored; size checking remains.
+    _verify_download(pdf, SimpleNamespace(size=pdf.stat().st_size,lfs={"sha256":"wrong"}),"fixture")
+    with pytest.raises(RagError, match="size mismatch"):
+        _verify_download(pdf, SimpleNamespace(size=pdf.stat().st_size+1),"fixture")

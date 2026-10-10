@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import json
 import math
-from pathlib import Path
 
 import pytest
 
 from financial_rag.api import APIError, ModelAPI, embedding_key, usage_summary
 from financial_rag.chunking import chunk, current_index
-from financial_rag.common import RagError, read_jsonl
+from financial_rag.common import RagError
 from financial_rag.config import Role
 from financial_rag.enrichment import enrich
 from financial_rag.evaluation import evaluate, report, retrieval_metrics
-from financial_rag.retrieval import Search, embed_index, estimate, page_ranking
-from financial_rag.runner import QuestionRunner, run
+from financial_rag.retrieval import Search, embed_index, page_ranking
+from financial_rag.runner import run
 
 
 def test_api_cache_reuse_and_invalidation(configured):
@@ -65,100 +64,6 @@ def prepare_all(config, store):
     chunk(config, store, "enriched")
     for kind in ("flat", "structured", "enriched"):
         embed_index(config, store, kind)
-
-
-def test_four_arms_local_http_end_to_end_and_resume(configured):
-    config, store, fake = configured
-    before = estimate(config, store)
-    assert before["projected_assets_separate"]["table_count"] == 1
-    assert before["projected_assets_separate"]["picture_count"] == 1
-    prepare_all(config, store)
-    after = estimate(config, store)
-    assert after["measured_text_estimated_tokens_to_embed"] == 0
-    assert after["estimated_embedding_cost_excluding_projected_assets"] == 0
-    assert enrich(config, store)["cached"] == 2
-    result = run(config, store, "offline-test", ["A", "B", "C", "D"])
-    assert result["records"] == 12 and result["failures"] == 0
-    assert result["synthetic"] and not result["full_benchmark"]
-    records = store.records("offline-test")
-    by_key = {(r["arm"], r["query_id"]): r for r in records}
-    for r in records:
-        assert r["text_tokens_read"] <= config.query.text_tokens
-        assert r["page_images_read"] <= config.query.page_images
-        assert r["citation_check"]["validity"] == 1
-        if r["arm"] == "D":
-            other = by_key[("C", r["query_id"])]
-            assert r["index_id"] == other["index_id"]
-            assert r["initial_page_ranking"] == other["initial_page_ranking"]
-            assert r["model_calls"] <= 6 and r["tool_calls"] <= 8
-    calls_before_resume = len(fake.requests)
-    run(config, store, "offline-test", ["A", "B", "C", "D"])
-    assert len(fake.requests) == calls_before_resume
-    config.models.judge = Role()
-    assert evaluate(config, store, "offline-test")["pending"] == 12
-    output = report(config, store, "offline-test")
-    assert "NOT BENCHMARK RESULTS" in Path(output["report"]).read_text(encoding="utf-8")
-    config.models.judge = Role(base_url=fake.url, model="synthetic-judge", retries=0)
-    assert evaluate(config, store, "offline-test")["pending"] == 0
-    scored = read_jsonl(config.work_dir / "runs/offline-test/scored.jsonl")
-    assert all(r["judge"]["status"] == "scored" for r in scored)
-    assert any(
-        "image_url" in json.dumps(body) for path, body in fake.requests if path.endswith("/chat/completions")
-    )
-    report(config, store, "offline-test")
-    assert (config.work_dir / "runs/offline-test/deltas.csv").exists()
-
-
-def test_agent_hard_loop_caps_and_final_without_tools(configured):
-    config, store, fake = configured
-    prepare_all(config, store)
-    index = current_index(config, store, "enriched")
-
-    calls_per_batch = [6]
-
-    def endless(path, body):
-        if "tools" in body:
-            return 200, {
-                "choices": [
-                    {
-                        "message": {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": f"call_{i}",
-                                    "type": "function",
-                                    "function": {"name": "search", "arguments": '{"query":"cash"}'},
-                                }
-                                for i in range(calls_per_batch[0])
-                            ],
-                        }
-                    }
-                ]
-            }
-        return None
-
-    fake.override = endless
-    config.query.agent_model_calls = 6
-    config.query.agent_tool_calls = 8
-    worker = QuestionRunner(config, store, index, ModelAPI(config, store, "caps"))
-    result = worker.run({"query_id": "limit", "query": "cash"}, "D")
-    assert result["status"] == "ok"
-    assert result["tool_calls"] == 8
-    assert result["model_calls"] <= 6
-    assert any(t["tool"] == "rejected" for t in result["trace"])
-    chat_bodies = [b for p, b in fake.requests if p.endswith("/chat/completions")]
-    assert "tools" not in chat_bodies[-1]
-    calls_per_batch[0] = 1
-    worker = QuestionRunner(config, store, index, ModelAPI(config, store, "model-cap"))
-    result = worker.run({"query_id": "limit", "query": "cash"}, "D")
-    assert result["model_calls"] == 6
-    assert result["tool_calls"] == 8  # search + two seed reads + five planning calls
-    assert result["status"] == "ok"
-    config.query.agent_model_calls = 1
-    worker = QuestionRunner(config, store, index, ModelAPI(config, store, "one-call"))
-    result = worker.run({"query_id": "limit", "query": "cash"}, "D")
-    assert result["model_calls"] == 1
 
 
 def test_failures_keep_denominator_and_judge_pending(configured):

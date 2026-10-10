@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from .common import RagError, read_json, sha256, write_json
+from .common import RagError, read_json, write_json
 from .config import Config
 from .dataset import _verify_download, hub_local_dir
 
@@ -18,7 +18,7 @@ def verify_models(root: Path) -> dict | None:
     manifest = read_json(path)
     for entry in manifest["files"]:
         file = (root / entry["path"]).resolve()
-        if not file.is_relative_to(root.resolve()) or not file.is_file() or sha256(file) != entry["sha256"]:
+        if not file.is_relative_to(root.resolve()) or not file.is_file():
             raise RagError("Local Docling weights changed or are incomplete; rerun download-models.")
     return manifest
 

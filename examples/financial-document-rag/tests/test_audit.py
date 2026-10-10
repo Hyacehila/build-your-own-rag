@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from financial_rag.chunking import current_index
-from financial_rag.common import RagError, sha256
+from financial_rag.common import RagError
 from financial_rag.diagnostics.audit import audit_data, fragment_pages, missing_header_terms, page_node_text
 from financial_rag.storage import Store
 
@@ -25,7 +25,7 @@ def test_audit_is_read_only_and_source_only(local, monkeypatch):
     # Prove the audit does not require or read benchmark questions or answers.
     for name in ("queries.jsonl", "labels.jsonl"):
         (Path(manifest["prepared_dir"]) / name).unlink()
-    before = sha256(writable.root / "experiment.sqlite")
+    before = (writable.root / "experiment.sqlite").read_bytes()
     with Store(writable.root, read_only=True) as store:
         result = audit_data(config, store, writable.root / "audit", gallery=False)
         assert result["errors"] == 0
@@ -36,7 +36,7 @@ def test_audit_is_read_only_and_source_only(local, monkeypatch):
         assert store.db.total_changes == 0
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
             store.set_meta("not_allowed", True)
-    assert sha256(writable.root / "experiment.sqlite") == before
+    assert (writable.root / "experiment.sqlite").read_bytes() == before
     with pytest.raises(RagError, match="read_only"):
         audit_data(config, writable, writable.root / "bad-audit", gallery=False)
 

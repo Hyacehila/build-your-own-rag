@@ -98,8 +98,8 @@ def submit_trial(bundle, client=None):
         )
     for entry in files:
         path = (bundle / entry["filename"]).resolve()
-        if not path.is_relative_to(bundle.resolve()) or sha256(path) != entry["sha256"]:
-            raise RagError("Trial PDF checksum/path mismatch.")
+        if not path.is_relative_to(bundle.resolve()):
+            raise RagError("Trial PDF path escapes its bundle.")
         with pymupdf.open(path) as pdf:
             if len(pdf) != 1:
                 raise RagError("Every diagnostic upload must contain exactly one page.")

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .common import RagError, digest
 
 DATASET_REVISION = "7f432c176d82e27546501ad8064a713ac3071809"
-ARMS = {"A": "flat", "B": "structured", "C": "enriched", "D": "enriched"}
+ARMS = {"A": "flat", "B": "structured", "C": "enriched", "pre-D": "structured", "D": "structured"}
 
 
 class Strict(BaseModel):
@@ -152,24 +152,30 @@ class Parsing(Strict):
 class Retrieval(Strict):
     sparse_k: int = Field(default=50, ge=1)
     dense_k: int = Field(default=50, ge=1)
-    rrf_k: int = Field(default=60, ge=1)
+    rrf_k: int = Field(default=20, ge=1)
     final_k: int = Field(default=20, ge=1)
+    flat_final_k: int = Field(default=10, ge=1)
+    summary_supplement_k: int = Field(default=5, ge=0, le=20)
     group_sources: bool = True
 
 
 class Query(Strict):
-    text_tokens: int = Field(default=24000, ge=1)
+    # Single contract: B/C/pre-D are one-shot; D searches structured originals.
+    bc_assembly: Literal["BC-source-priority-v3"] = "BC-source-priority-v3"
+    bc_text_tokens: int = Field(default=25000, ge=1, le=25000)
+    text_tokens: int = Field(default=40000, ge=1)
     page_images: int = Field(default=8, ge=0)
     image_scale: float = Field(default=1.5, gt=0, le=4)
-    direct_read_hits: int = Field(default=20, ge=1)
-    agent_model_calls: int = Field(default=10, ge=1)
-    agent_tool_calls: int = Field(default=20, ge=0)
     search_preview_tokens: int = Field(default=120, ge=0)
     preview_total_tokens: int = Field(default=3000, ge=0)
-    read_max_tokens: int = Field(default=2400, ge=1)
-    agent_seed_hits: int = Field(default=2, ge=0)
-    asset_read_fragments: int = Field(default=3, ge=1)
-    direct_window_radius: int = Field(default=2, ge=0, le=8)
+    read_max_tokens: int = Field(default=40000, ge=1)
+    audit_requests: bool = True
+    source_work_dir: Path | None = None
+    capacity_evidence_path: Path | None = None
+    exploration_calls: Literal[24] = 24
+    agent_total_images: Literal[16] = 16
+    agent_request_images: Literal[8] = 8
+    contract: Literal["five-arm-original-agent-v1"] = "five-arm-original-agent-v1"
 
 
 class Validation(Strict):
@@ -177,10 +183,16 @@ class Validation(Strict):
     ledger: Path | None = None
     batch: str = "finite-integration-v1"
     deepseek_request_limit: int = Field(default=60, ge=1, le=60)
+    # Separate durable guard for a formal run; includes every provider role.
+    full_ledger: Path | None = None
+    full_batch: str = ""
+    full_request_limit: int | None = Field(default=None, ge=1)
+    full_token_limit: int | None = Field(default=None, ge=1)
+    full_unknown_usage_limit: int = Field(default=100, ge=0)
 
 
 class Enrichment(Strict):
-    retrieval_mode: Literal["additive", "replace"] = "additive"
+    retrieval_mode: Literal["additive"] = "additive"
     image_estimate_tokens: int = Field(default=180, ge=1)
     table_estimate_tokens: int = Field(default=220, ge=1)
     max_input_tokens: int = Field(default=12000, ge=100)
@@ -237,8 +249,14 @@ def load_config(path: Path | None) -> Config:
     load_dotenv(base / ".env", override=False)
     config = Config.model_validate(tomllib.loads(path.read_text(encoding="utf-8")) if path else {})
     config.work_dir = (base / config.work_dir).resolve()
+    if config.query.source_work_dir:
+        config.query.source_work_dir = (base / config.query.source_work_dir).resolve()
+    if config.query.capacity_evidence_path:
+        config.query.capacity_evidence_path = (base / config.query.capacity_evidence_path).resolve()
     if config.parsing.artifacts_path:
         config.parsing.artifacts_path = str((base / config.parsing.artifacts_path).resolve())
     if config.validation.ledger:
         config.validation.ledger = (base / config.validation.ledger).resolve()
+    if config.validation.full_ledger:
+        config.validation.full_ledger = (base / config.validation.full_ledger).resolve()
     return config

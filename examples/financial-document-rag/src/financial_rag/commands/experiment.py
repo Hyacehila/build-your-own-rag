@@ -1,6 +1,7 @@
 """Enhancement, embedding, answering and evaluation command adapters."""
 
 import json
+from pathlib import Path
 
 from ..common import write_json
 from ..config import ARMS
@@ -8,7 +9,7 @@ from ..config import ARMS
 
 def register(commands):
     p = commands.add_parser(
-        "enrich", help="Generate picture descriptions and whole-table retrieval summaries"
+        "enrich", help="Generate five-block body, picture and table retrieval summaries"
     )
     p.add_argument("--node-id", action="append", help="Restrict enhancement to selected active assets")
     p.set_defaults(handler=enrich)
@@ -17,17 +18,23 @@ def register(commands):
     p = commands.add_parser("embed", help="Embed chunks, reusing exact cached inputs")
     p.add_argument("--index", choices=["flat", "structured", "enriched", "all"], default="all")
     p.set_defaults(handler=embed)
-    p = commands.add_parser("run", help="Run or resume an immutable A/B/C/D experiment")
-    p.add_argument("--run", required=True, help="Immutable run ID; reuse only to resume the same settings")
+    p = commands.add_parser("run", help="Run or resume an immutable A/B/C/pre-D/D experiment")
+    scope = p.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--run", help="Immutable run ID; reuse only to resume the same settings")
+    scope.add_argument("--plan", type=Path, help="Delegate to the shared frozen serial executor")
     p.add_argument("--arms", nargs="+", choices=list(ARMS), default=list(ARMS))
     p.add_argument("--limit", type=int)
     p.add_argument("--retry-errors", action="store_true")
     p.set_defaults(handler=run)
     p = commands.add_parser("evaluate", help="Score a run against its frozen labels")
-    p.add_argument("--run", required=True)
+    scope = p.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--run")
+    scope.add_argument("--plan", type=Path, help="Use the common frozen-plan entrypoint")
     p.set_defaults(handler=evaluate)
     p = commands.add_parser("report", help="Export an evaluated run's report")
-    p.add_argument("--run", required=True)
+    scope = p.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--run")
+    scope.add_argument("--plan", type=Path, help="Use the common frozen-plan entrypoint")
     p.set_defaults(handler=report)
     p = commands.add_parser("usage", help="Export recorded API calls and tokens")
     p.set_defaults(handler=usage)

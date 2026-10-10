@@ -1,12 +1,11 @@
-# Current v2 fact and A/B retrieval contract. Credentials come from .env or the environment.
-work_dir = ".local/retrieval-v2"
+work_dir = ".local/contract-v1/runtime"
 
 [dataset]
 repo = "vidore/vidore_v3_finance_en"
 revision = "7f432c176d82e27546501ad8064a713ac3071809"
 expected_documents = 6
 expected_pages = 2942
-expected_english_queries = 309
+expected_english_queries = 296
 
 [tokenizer]
 kind = "tiktoken"
@@ -22,22 +21,28 @@ source_scope = "fragment"
 [retrieval]
 sparse_k = 50
 dense_k = 50
-rrf_k = 60
+rrf_k = 20
 final_k = 20
+flat_final_k = 10
+summary_supplement_k = 5
 group_sources = true
 
 [query]
-text_tokens = 24000
+bc_assembly = "BC-source-priority-v3"
+bc_text_tokens = 25000
+text_tokens = 40000
 page_images = 8
 image_scale = 1.5
-direct_read_hits = 20
-agent_model_calls = 10
-agent_tool_calls = 20
 search_preview_tokens = 120
 preview_total_tokens = 3000
-read_max_tokens = 2400
-agent_seed_hits = 2
-asset_read_fragments = 3
+read_max_tokens = 40000
+audit_requests = true
+source_work_dir = ".local/contract-v1/source"
+capacity_evidence_path = "config/gateway-capacity.json"
+exploration_calls = 24
+agent_total_images = 16
+agent_request_images = 8
+contract = "five-arm-original-agent-v1"
 
 [enrichment]
 retrieval_mode = "additive"
@@ -50,6 +55,8 @@ prompt_version = "1"
 embedding_per_million = 0.5
 currency = "CNY"
 label = "Planning assumption only; verify actual billing with the provider."
+
+[models]
 
 [models.embedding]
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -65,47 +72,53 @@ dimensions = 1024
 encoding_format = "float"
 
 [models.chat]
-base_url = "https://api.deepseek.com"
-model = "deepseek-flash"
-api_key_env = "DEEPSEEK_API_KEY"
+base_url = "http://100.84.208.112:8121/v1"
+model = "deepseek-v4.1-flash"
+api_key_env = "NEW_API_KEY"
 timeout_seconds = 180
 retries = 5
 json_retries = 5
 cache_revision = "1"
-
 json_mode = true
 
 [models.chat.request_params]
-thinking = { type = "enabled" }
 reasoning_effort = "low"
 max_tokens = 16384
 
+[models.chat.request_params.thinking]
+type = "enabled"
+
 [models.vision]
-base_url = "https://api.deepseek.com"
-model = "deepseek-flash"
-api_key_env = "DEEPSEEK_API_KEY"
+base_url = "http://100.84.208.112:8121/v1"
+model = "deepseek-v4.1-flash"
+api_key_env = "NEW_API_KEY"
 timeout_seconds = 180
 retries = 5
 json_retries = 5
 cache_revision = "1"
 
 [models.vision.request_params]
-thinking = { type = "enabled" }
 reasoning_effort = "low"
 max_tokens = 8192
 
+[models.vision.request_params.thinking]
+type = "enabled"
+
 [models.judge]
-base_url = "https://api.deepseek.com"
-model = "deepseek-flash"
-api_key_env = "DEEPSEEK_API_KEY"
+base_url = "http://100.84.208.112:8121/v1"
+model = "deepseek-v4.1-flash"
+api_key_env = "NEW_API_KEY"
 timeout_seconds = 180
 retries = 5
 json_retries = 5
 cache_revision = "1"
-
 json_mode = true
 
 [models.judge.request_params]
-thinking = { type = "enabled" }
 reasoning_effort = "low"
 max_tokens = 8192
+
+[models.judge.request_params.thinking]
+type = "enabled"
+
+[validation]

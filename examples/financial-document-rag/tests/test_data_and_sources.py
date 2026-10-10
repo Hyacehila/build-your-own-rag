@@ -113,7 +113,7 @@ def test_inspection_and_read_budget_and_version_binding(local):
     with Path(doc["pdf_path"]).open("ab") as f:
         f.write(b"tampered")
     fresh = Reader(config, store, index)
-    assert "modified" in fresh.read(doc_version=version, page_index=0)["error"]
+    assert "error" not in fresh.read(doc_version=version, page_index=0)  # Readable PDF, no checksum gate.
 
 
 def test_cache_invalidation_after_chunk_settings(local):

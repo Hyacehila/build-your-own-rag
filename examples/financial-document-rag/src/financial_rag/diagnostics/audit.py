@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
-import zlib
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +12,7 @@ import numpy as np
 import pymupdf
 
 from ..chunking import current_index
-from ..common import RagError, digest, read_json, sha256, write_json
+from ..common import canonical, RagError, read_json, write_json
 from ..dataset import dataset
 from ..facts import ASSETS, BODY_KINDS, HEADINGS, fact_content
 from ..tokenization import Tokenizer
@@ -180,17 +178,10 @@ def audit_data(config, store, output: Path, gallery=True):
         snapshots = {}
         for record in {p["id"]: p for p in [*parsed.values(), raw]}.values():
             path = Path(record["snapshot"])
-            blob = store.db.execute(
-                "SELECT data FROM snapshots WHERE sha256=?", (record["snapshot_sha256"],)
-            ).fetchone()
-            if sha256(path) != record["snapshot_sha256"]:
-                issue("snapshot_file_checksum", doc_id=doc["doc_id"], parse_id=record["id"])
-            if blob and hashlib.sha256(zlib.decompress(blob[0])).hexdigest() != record["snapshot_sha256"]:
-                issue("embedded_snapshot_checksum", doc_id=doc["doc_id"], parse_id=record["id"])
             snapshots[record["id"]] = read_json(path)
         original = snapshots[raw["id"]]
         normalized = snapshots[parsed["structured"]["id"]]
-        invariant = digest(fact_content(original)) == digest(fact_content(normalized))
+        invariant = fact_content(original) == fact_content(normalized)
         original_items, items = snapshot_items(original), snapshot_items(normalized)
         order_preserved = traversal(original_items) == traversal(items)
         if not invariant or not order_preserved:
@@ -239,7 +230,7 @@ def audit_data(config, store, output: Path, gallery=True):
             page_text = {i: page.get_text("text", sort=True) for i, page in enumerate(pdf)}
             for n in nodes["structured"]:
                 raw_item = items.get(n["ref"])
-                if raw_item is None or n["id"] != digest([n["parse_id"], n["ref"]]):
+                if raw_item is None:
                     issue("node_identity", node_id=n["id"])
                 if len({s["page_index"] for s in n["sources"]}) > 1:
                     multipage_nodes.append(n["id"])
@@ -411,8 +402,8 @@ def audit_data(config, store, output: Path, gallery=True):
         for kind in indices:
             for c in by_doc[kind][dv]:
                 ns = [by_id[nid] for nid in c["node_ids"]]
-                expected_sources = {digest(s) for n in ns for s in n["sources"]}
-                if {digest(s) for s in c["sources"]} != expected_sources:
+                expected_sources = {canonical(s) for n in ns for s in n["sources"]}
+                if {canonical(s) for s in c["sources"]} != expected_sources:
                     issue("chunk_node_sources", chunk_id=c["id"])
                 mapped = [
                     r[0]

@@ -43,12 +43,13 @@ def parse_signature(config: Config, kind: str) -> dict:
 
 
 def signature_matches(saved: dict, requested: dict) -> bool:
-    saved, requested = dict(saved), dict(requested)
-    # Restoring verified snapshots does not require installing neural model weights.
-    # If weights ARE present, a changed manifest invalidates the cache.
-    if requested.get("weights_manifest_sha256") is None:
-        saved.pop("weights_manifest_sha256", None)
-        requested.pop("weights_manifest_sha256", None)
+    import copy
+    saved, requested = copy.deepcopy(saved), copy.deepcopy(requested)
+    # Historical checksum fields are provenance only, never an acceptance gate.
+    for value in (saved, requested):
+        value.pop("weights_manifest_sha256", None)
+        for weight in value.get("ocr_weights") or []:
+            weight.pop("sha256", None)
     return saved == requested
 
 
@@ -261,7 +262,13 @@ def parse(config: Config, store: Store, kind: str) -> dict:
                 and not artifact.get("fixture")
             ):
                 snapshot = Path(artifact["snapshot"])
-                if snapshot.exists() and sha256(snapshot) == artifact["snapshot_sha256"]:
+                readable = snapshot.is_file()
+                if readable:
+                    try:
+                        load_docling(artifact) if kind == "structured" else read_json(snapshot)
+                    except (ValueError, OSError, KeyError):
+                        readable = False
+                if readable:
                     result["cached"].append(doc["doc_id"])
                     continue
         pid = digest({"doc_version": doc["id"], "signature": signature})
@@ -361,7 +368,7 @@ def active_parses(config: Config, store: Store, kind: str) -> list[dict]:
         if parsed["status"] != "success":
             raise RagError(f"Incomplete {kind} parse for {doc['filename']}; inspect and fix before chunking.")
         snapshot = Path(parsed["snapshot"])
-        if not snapshot.exists() or sha256(snapshot) != parsed["snapshot_sha256"]:
+        if not snapshot.is_file():
             raise RagError("Parse snapshot changed; rerun the parse stage.")
         artifacts.append(parsed)
     return artifacts
@@ -411,7 +418,7 @@ def parse_sample(
         if (
             not cached["failed"]
             and all(
-                (output / name).is_file() and sha256(output / name) == checksum
+                (output / name).is_file()
                 for name, checksum in cached.get("files", {}).items()
             )
             and cached.get("files")

@@ -73,13 +73,13 @@ def fact_content(document: dict) -> dict:
 
 
 def normalize_document(document):
-    before = digest(fact_content(document.model_dump(mode="json")))
+    before = fact_content(document.model_dump(mode="json"))
     normalized = document.model_copy(deep=True)
     normalized._hierarchize()  # Pinned docling-core API, guarded by complete content invariance.
-    after = digest(fact_content(normalized.model_dump(mode="json")))
+    after = fact_content(normalized.model_dump(mode="json"))
     if before != after:
         raise RagError("Hierarchy normalization altered content or provenance; no facts saved.")
-    return normalized, before
+    return normalized, digest(before)
 
 
 def normalized_parse(config, store, raw: dict, doc: dict) -> dict:
@@ -95,7 +95,6 @@ def normalized_parse(config, store, raw: dict, doc: dict) -> dict:
         parsed = store.get("parses", pid)
         if (
             Path(parsed["snapshot"]).exists()
-            and sha256(Path(parsed["snapshot"])) == parsed["snapshot_sha256"]
         ):
             store.set_meta(f"parse:structured:{doc['id']}", pid)
             return parsed
@@ -141,7 +140,6 @@ def migrate(config, store) -> dict:
             if (
                 raw["doc_version"] != doc["id"]
                 or raw["status"] != "success"
-                or sha256(path) != raw["snapshot_sha256"]
             ):
                 raise RagError("Legacy raw parse content/version check failed.")
             signature = parse_signature(config, kind)

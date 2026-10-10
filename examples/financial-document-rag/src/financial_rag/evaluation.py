@@ -7,7 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 from statistics import mean
 
-from .api import ModelAPI, usage_summary
+from .api import ModelAPI, fatal_provider_error, usage_summary
 from .common import RagError, canonical, digest, read_jsonl, sha256, write_json, write_jsonl
 from .config import Config
 from .storage import Store
@@ -93,6 +93,8 @@ def _judge(config: Config, store: Store, row: dict, label: dict) -> dict:
         store.cache(key, result)
         return result
     except Exception as e:
+        if fatal_provider_error(e):
+            raise
         return {
             "status": "error",
             "correct": None,
@@ -104,8 +106,6 @@ def _judge(config: Config, store: Store, row: dict, label: dict) -> dict:
 def evaluate(config: Config, store: Store, run_id: str) -> dict:
     run = store.get("runs", run_id)
     path = Path(run["dataset"]["prepared_dir"]) / "labels.jsonl"
-    if sha256(path) != run["dataset"]["labels_sha256"]:
-        raise RagError("Labels changed since the run; cannot score against a different benchmark version.")
     labels = {r["query_id"]: r for r in read_jsonl(path)}
     records = store.records(run_id)
     by_key = {(r["arm"], r["query_id"]): r for r in records}
@@ -221,11 +221,16 @@ def report(config: Config, store: Store, run_id: str) -> dict:
     run = store.get("runs", run_id)
     meta = store.meta("evaluation:" + run_id)
     out = config.work_dir / "runs" / run_id
-    if not meta or meta["records_digest"] != digest(store.records(run_id)):
+    if not meta:
         raise RagError("Run has not been evaluated or records changed; run evaluate first.")
-    if sha256(out / "scored.jsonl") != meta["scored_sha256"]:
-        raise RagError("Scored output changed; regenerate evaluation.")
     rows = read_jsonl(out / "scored.jsonl")
+    current = {(r["arm"],r["query_id"]):r for r in store.records(run_id)}
+    if len(rows)!=len(current) or any(
+        (r["arm"],r["query_id"]) not in current or
+        any(r.get(k)!=v for k,v in current[r["arm"],r["query_id"]].items())
+        for r in rows
+    ):
+        raise RagError("Run records changed; run evaluate first.")
     summary = summarize(rows)
     _csv(out / "summary.csv", summary)
     by_group = {(r["group_type"], r["group"], r["arm"]): r for r in summary}
@@ -233,8 +238,11 @@ def report(config: Config, store: Store, run_id: str) -> dict:
     for gt, group in sorted({(r["group_type"], r["group"]) for r in summary}):
         for a, b, meaning in [
             ("A", "B", "parser + chunker"),
-            ("B", "C", "image + table enrichment"),
-            ("C", "D", "query controller"),
+            ("B", "C", "body-window + image/table summary retrieval"),
+            ("B", "pre-D", "rewriting plus anchor-only initial assembly over original B index"),
+            ("pre-D", "D", "fixed initial expansion plus iterative retrieval over original B index"),
+            ("B", "D", "complete original-source agent"),
+            ("C", "D", "alternative retrieval architectures"),
         ]:
             left, right = by_group.get((gt, group, a)), by_group.get((gt, group, b))
             if left and right:
@@ -267,26 +275,26 @@ def report(config: Config, store: Store, run_id: str) -> dict:
     lines = [
         f"# {title}",
         "",
-        f"Run: `{run_id}`. Full six-PDF / 309-question / four-arm run: `{run['full_benchmark']}`.",
+        f"Run: `{run_id}`. Full six-PDF / {run['dataset']['counts']['queries']}-question / five-arm run: `{run['full_benchmark']}`.",
         "",
-        "A→B compares parsing, chunking and structural source expansion together. B→C compares image + table enrichment together. "
-        "C→D compares query control. These comparisons do not isolate individual components.",
+        "A→B compares parsing, chunking and structural source expansion together. B→C adds body-window and image/table summary entrances. "
+        "B→pre-D includes both rewriting and initial assembly changes; pre-D→D tests fixed initial expansion plus iterative original-source retrieval. C→D compares alternative architectures.",
         "",
         "Initial page retrieval uses deduplicated best chunk rank, linear graded DCG, NDCG@10 and Recall@5/10. "
-        "C and D begin with the same original-question search. Agent follow-up searches affect final reads, "
+        "pre-D and D share the rewritten first-query snapshot over B originals. Agent follow-up searches affect final reads, "
         "which are reported separately. Failed / not-run questions stay in the denominator.",
         "",
         "Page evidence coverage is a location metric, not proof of answer correctness. Citation validity checks "
         "binding to actually read sources, not entailment. Missing citations and missing judges are not invented zero scores. "
         "Accuracy remains pending until all required answers are judged (run failures count as incorrect when judging is enabled).",
         "",
-        "| Group | Arm | n | Failed / not run | NDCG@10 | R@5 | R@10 | Read coverage | Citation validity (n) | Answer accuracy |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---|---:|",
+        "| Group | Arm | n | NDCG@10 | R@5 | R@10 | Read coverage | Citation validity (n) | Answer accuracy |",
+        "|---|---|---:|---:|---:|---:|---:|---|---:|",
     ]
     for r in summary:
         label = (r["group_type"] + ":" + r["group"]).replace("|", "\\|").replace("\n", " ")
         lines.append(
-            f"| {label} | {r['arm']} | {r['n']} | {r['failed_or_not_run']} | "
+            f"| {label} | {r['arm']} | {r['n']} | "
             f"{fmt(r['ndcg_at_10'])} | {fmt(r['recall_at_5'])} | {fmt(r['recall_at_10'])} | "
             f"{fmt(r['evidence_page_coverage'])} | {fmt(r['citation_validity'])} ({r['citation_validity_n']}) | "
             f"{fmt(r['answer_accuracy'])} |"

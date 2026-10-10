@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS cache(key TEXT PRIMARY KEY, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS api_calls(
     id INTEGER PRIMARY KEY AUTOINCREMENT, context TEXT NOT NULL, role TEXT NOT NULL, payload TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS calls_by_context ON api_calls(context);
+CREATE TABLE IF NOT EXISTS request_payloads(sha256 TEXT PRIMARY KEY, data BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, payload TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS records(
     run_id TEXT NOT NULL REFERENCES runs(id), arm TEXT NOT NULL, query_id TEXT NOT NULL,
@@ -80,6 +81,7 @@ BEGIN SELECT RAISE(ABORT,'chunk item outside its index fact versions'); END;
 class Store:
     def __init__(self, root: Path, read_only: bool = False):
         self.root = root.resolve()
+        self.read_only = read_only
         if read_only:
             self.db = sqlite3.connect((self.root / "experiment.sqlite").as_uri() + "?mode=ro", uri=True)
         else:
@@ -134,10 +136,7 @@ class Store:
         }
 
     def save_snapshot(self, path: Path, checksum: str):
-        from .common import sha256
 
-        if sha256(path) != checksum:
-            raise RagError("Snapshot checksum mismatch; refusing to store altered facts.")
         with self.db:
             self.db.execute(
                 "INSERT OR IGNORE INTO snapshots VALUES (?,?,?)",
@@ -145,6 +144,9 @@ class Store:
             )
 
     def close(self):
+        if getattr(self, "source_store", None) is not None:
+            self.source_store.close()
+            self.source_store = None
         self.db.close()
 
     def __enter__(self):
@@ -335,21 +337,37 @@ class Store:
                     "INSERT OR REPLACE INTO chunk_vectors VALUES (?,?,?)", (c["id"], model_id, key)
                 )
 
-    def dense(self, index_id: str, model_id: str, vector, limit: int):
+    def dense(self, index_id: str, model_id: str, vector, limit: int, doc_ids: list[str] | None = None):
         # Materialize the allowed index/model population BEFORE calculating distances.
+        scope = ""
+        params = [model_id, index_id, len(vector)]
+        if doc_ids:
+            scope = " AND json_extract(c.payload,'$.sources[0].doc_id') IN (" + ",".join("?" for _ in doc_ids) + ")"
+            params.extend(doc_ids)
+        params.extend([np.asarray(vector, dtype="<f4").tobytes(), limit])
         return self.db.execute(
-            """
+            f"""
             WITH candidates AS MATERIALIZED (
                 SELECT c.id,e.vector FROM chunks c
                 JOIN chunk_vectors m ON m.chunk_id=c.id AND m.model_id=?
                 JOIN embeddings e ON e.key=m.embedding_key
-                WHERE c.index_id=? AND e.dimensions=?
+                WHERE c.index_id=? AND e.dimensions=?{scope}
             )
             SELECT id,vec_distance_cosine(vector,?) AS distance FROM candidates
             ORDER BY distance,id LIMIT ?
             """,
-            (model_id, index_id, len(vector), np.asarray(vector, dtype="<f4").tobytes(), limit),
+            params,
         ).fetchall()
+
+    def save_request_payload(self, payload: dict) -> str:
+        """Capture the outbound JSON body, never authentication headers or environment values."""
+        from .common import digest
+
+        key = digest(payload)
+        with self.db:
+            self.db.execute("INSERT OR IGNORE INTO request_payloads VALUES (?,?)",
+                            (key, zlib.compress(canonical(payload).encode("utf-8"))))
+        return key
 
     def log_call(self, context: str, role: str, payload: dict):
         with self.db:

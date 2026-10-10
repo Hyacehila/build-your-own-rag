@@ -1,5 +1,10 @@
-# Fully offline fixture checks: no paid model configuration and no tokenizer download.
+# Synthetic offline fixtures only: no provider endpoints or credentials.
+# Synthetic counterpart of the A, B and C strategies.
 work_dir = ".local/offline"
+
+[retrieval]
+flat_final_k = 10
+summary_supplement_k = 5
 
 [tokenizer]
 kind = "approx"

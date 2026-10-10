@@ -1,0 +1,17 @@
+{
+  "model": "deepseek-v4.1-flash",
+  "base_url": "http://100.84.208.112:8121/v1",
+  "context_window_tokens": 131072,
+  "verification": "provider_error_metadata",
+  "source_reference": "config/capacity-probe-response.json",
+  "provider_capacity_independently_verified": true,
+  "image_counting": "serialized_payload_tokens_proxy",
+  "text_encoding": "cl100k_base",
+  "message_overhead_tokens": 16,
+  "request_overhead_tokens": 64,
+  "counting_is_estimated": true,
+  "counting_limitations": "cl100k and serialized image payload are proxies. The 1.2 factor is an engineering margin, not a different service capacity or billing measure.",
+  "probe_response_sha256": "47826b488d80c6007b323406e5791e2966d0962b8d126c72870a62fcd162195e",
+  "capacity_verification_scope": "Gateway-reported maximum context from synthetic HTTP400; not an independent upstream-model or tokenizer attestation",
+  "input_estimate_multiplier": 1.2
+}

@@ -244,6 +244,8 @@ def chunk(config: Config, store: Store, kind: str) -> dict:
     }
     if kind == "enriched":
         index["enrichment_retrieval_mode"] = config.enrichment.retrieval_mode
+        index["base_index_id"] = base["id"]
+        index["summary_contract"] = "same-section-five-blocks-overlap-one-v1"
     index["id"] = digest({**index, "chunks": pieces})
     for i, piece in enumerate(pieces):
         piece["index_id"] = index["id"]
@@ -291,6 +293,11 @@ def current_index(config: Config, store: Store, kind: str) -> dict:
             for n in store.nodes(pid)
             if n["kind"] in ("table", "picture")
         ]
+        from .summary_windows import body_windows, summary_key, CONTRACT
+        if index.get("summary_contract") != CONTRACT:
+            raise RagError("Legacy C index rejected: build the five-block summary index")
+        base = current_index(config, store, "structured")
+        actual += [summary_key(config, w) for w in body_windows(store, base)]
         if sorted(index["enhancement_ids"]) != sorted(actual):
             raise RagError("Enrichment model/options changed; rerun enrich and chunk --index enriched.")
     return index

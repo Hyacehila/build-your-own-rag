@@ -12,7 +12,7 @@ def secret_scan(db, paths=()):
     """Inspect stored values and decompressed snapshots without reporting secrets."""
     secrets = [
         os.environ.get(name, "").encode()
-        for name in ("DASHSCOPE_API_KEY", "DEEPSEEK_API_KEY", "MINERU_API_KEY")
+        for name in ("DASHSCOPE_API_KEY", "NEW_API_KEY", "DEEPSEEK_API_KEY", "MINERU_API_KEY")
     ]
     secrets = [secret for secret in secrets if secret]
     findings = []

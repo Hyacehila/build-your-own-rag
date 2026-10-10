@@ -14,6 +14,15 @@ def test_cli_four_arm_fixture_and_read_only_audit(tmp_path, fake, monkeypatch, c
     config = Config(work_dir=tmp_path / "work", tokenizer=Tokens(kind="approx", estimated=True))
     for name in ("embedding", "chat", "vision", "judge"):
         setattr(config.models, name, Role(base_url=fake.url, model="offline-double", retries=0))
+    config.models.chat.request_params = {"max_tokens": 1024}
+    proof = tmp_path / "synthetic-capacity.json"
+    proof.write_text(json.dumps({
+        "model": config.models.chat.model, "base_url": fake.url,
+        "verification": "operator_configuration", "source_reference": "Loopback-only CLI test service",
+        "context_window_tokens": 131072, "image_token_upper_bound": 4096,
+        "message_overhead_tokens": 16, "request_overhead_tokens": 64, "text_encoding": "cl100k_base",
+    }))
+    config.query.capacity_evidence_path = proof
     monkeypatch.setattr(cli, "load_config", lambda path: config)
     opened = []
 

@@ -6,7 +6,7 @@ from collections import Counter
 import pymupdf
 from docling_core.types.doc import DocItemLabel, RefItem, SectionHeaderItem, TextItem, TitleItem
 
-from ..common import RagError, digest
+from ..common import RagError
 
 CONTRACT = "financial-boundaries-and-native-grid-v1"
 ABBREVIATION = re.compile(r"^(?:[A-Z]\.){2,}(?:\s|$)")
@@ -70,7 +70,7 @@ def _linear_tree(doc, heading_refs):
 
 def repair_headings(document, pdf_path):
     doc = document.model_copy(deep=True)
-    before = digest(semantic_content(doc))
+    before = semantic_content(doc)
     heading_refs = {x.self_ref for x in doc.texts if isinstance(x, (SectionHeaderItem, TitleItem))}
     changes = []
     with pymupdf.open(pdf_path) as pdf:
@@ -171,7 +171,7 @@ def repair_headings(document, pdf_path):
                     {"ref": item.self_ref, "page": page, "reason": reason, "old": old, "new": item.level}
                 )
     _linear_tree(doc, heading_refs)
-    if digest(semantic_content(doc)) != before:
+    if semantic_content(doc) != before:
         raise RagError("Structural repair altered text, table content or coordinates.")
     return doc, {
         "contract": CONTRACT,

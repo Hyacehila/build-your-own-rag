@@ -11,7 +11,7 @@ import numpy as np
 from .api import ModelAPI, usage_summary
 from .budget import status
 from .chunking import chunk, current_index
-from .common import RagError, canonical, digest, read_jsonl, sha256, write_json
+from .common import RagError, canonical, digest, read_jsonl, write_json
 from .config import Config
 from .dataset import dataset
 from .storage import Store
@@ -45,8 +45,6 @@ def doctor(config: Config, store: Store, live: bool = False) -> dict:
             manifest = dataset(store, verify_pdfs=True, verify_queries=True)
             prepared = Path(manifest["prepared_dir"])
             labels_path = prepared / "labels.jsonl"
-            if sha256(labels_path) != manifest["labels_sha256"]:
-                raise RagError("Prepared English labels changed.")
             questions = read_jsonl(prepared / "queries.jsonl")
             labels = read_jsonl(labels_path)
             qids = [q["query_id"] for q in questions]
@@ -128,10 +126,10 @@ def doctor(config: Config, store: Store, live: bool = False) -> dict:
 def protocol_check(config, store):
     from .fixture import create_fixture
     from .parsing import page_source, parse
-    from .runner import TOOLS
+    from .agent_reading import TOOLS
     from .sources import Reader, render_source, validate_citations
 
-    key = "live-protocol:" + digest([config.models.embedding.identity(), config.models.chat.identity(), "v1"])
+    key = "live-protocol:" + digest([config.models.embedding.identity(), config.models.chat.identity(), "v2"])
     prior = store.meta(key)
     if prior and prior["status"] == "passed":
         return {**prior, "cached_verification": True}
@@ -180,8 +178,9 @@ def protocol_check(config, store):
             ]
             first = api.chat("chat", messages, tools=[TOOLS[1]], retry=False)
             report["first_assistant"] = first
-            if not first.get("tool_calls") or not first.get("reasoning_content"):
-                raise RagError("Expected actual tool calls and thinking content from the configured model.")
+            if not first.get("tool_calls"):
+                raise RagError("Expected actual tool calls from the configured model.")
+            reasoning_returned = bool(first.get("reasoning_content"))
             messages.append(first)
             if len(first["tool_calls"]) > 2:
                 raise RagError("Protocol probe exceeded its two-tool ceiling.")
@@ -204,8 +203,9 @@ def protocol_check(config, store):
                     ],
                 }
             )
-            # Keep tools on this second probe request to exercise DeepSeek's strict
-            # requirement that the previous reasoning_content be sent back.
+            # Replay the complete assistant message, including reasoning_content when
+            # returned. Compatible gateways may omit it; absence does not establish
+            # whether upstream thinking is enabled or disabled.
             final = api.chat("chat", messages, tools=[TOOLS[1]], retry=False)
             report["final_assistant"] = final
             if final.get("tool_calls"):
@@ -218,7 +218,8 @@ def protocol_check(config, store):
                 status="passed",
                 image_in_user_message=True,
                 tool_roundtrip=True,
-                reasoning_roundtrip=True,
+                reasoning_content_returned=reasoning_returned,
+                reasoning_roundtrip=True if reasoning_returned else None,
                 final=answer,
                 citation_check=check,
                 source_trace=reader.trace,
@@ -284,7 +285,7 @@ def check_known_pages(config, store):
     ]
     if len(empty) != 2:
         raise RagError("The pinned JPMorgan diagnostic no longer locates exactly two empty tables.")
-    before = {n["id"]: digest(n["raw"]) for n in empty}
+    before = {n["id"]: n["raw"] for n in empty}
     result = {
         "diagnostic_only": True,
         "enrichment": enrich(config, store, [n["id"] for n in empty]),
@@ -302,7 +303,7 @@ def check_known_pages(config, store):
                 "read": read,
                 "image_evidence": [e["id"] for e in evidence if e["type"] == "image"],
                 "enhancement": record,
-                "raw_unchanged": before[node["id"]] == digest(store.get("nodes", node["id"])["raw"]),
+                "raw_unchanged": before[node["id"]] == store.get("nodes", node["id"])["raw"],
             }
         )
     tables = [

@@ -5,14 +5,17 @@ import re
 import time
 from pathlib import Path
 
-from .api import ModelAPI, usage_summary
+from .api import APIError, ModelAPI, fatal_provider_error, usage_summary
 from .chunking import current_index
 from .common import RagError, canonical, digest, implementation, read_jsonl, write_json, write_jsonl
-from .config import ARMS, Config
+from .config import ARMS
 from .dataset import dataset
 from .retrieval import Search, page_ranking
 from .sources import Reader, validate_citations
+from .evidence_packet import OriginalCatalog
+from .context_capacity import Capacity
 from .storage import Store
+from .agent_reading import parse_final
 
 SYSTEM = """Answer financial document questions using only supplied document evidence.
 Write the answer in English.
@@ -22,66 +25,6 @@ Return a JSON object with exactly: {"answer": "your answer", "citations": ["E1",
 Use only evidence IDs actually provided in this conversation. Include units and periods for numbers.
 If the provided evidence is insufficient, say so instead of guessing. Do not use outside knowledge.
 """
-
-AGENT_SYSTEM = """Build an evidence checklist for the question: company, metric, period, unit,
-and any comparison/calculation operands. Read the matching original fragments first. Search
-again only for a specific missing checklist item, using its company/year/metric and useful
-synonyms; do not blindly repeat the original query. For comparisons and multi-hop questions,
-collect evidence for every entity/period before computing. Check table headers, scale, signs
-and footnotes. Use fragment reads for precision, context/window or explicit node offsets for
-missing context, and page images for charts or ambiguous tables. Summaries/previews are only
-retrieval pointers. Stop when evidence is sufficient; if it remains insufficient, say exactly
-what is missing. Optimize factual correctness, completeness, units, periods and valid source
-citations, not the number of searches. Never infer the benchmark's expected answer.
-Use exact returned chunk/node identifiers. A document name is not a node ID; for page reads,
-look up doc_version in the search documents map and use the zero-based page_index. Supply
-only one target: chunk_id, node_id, or doc_version plus page_index.
-"""
-
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search",
-            "description": "Search the complete document collection. Hits are pointers; use read for original evidence.",
-            "parameters": {
-                "type": "object",
-                "properties": {"query": {"type": "string"}},
-                "required": ["query"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read",
-            "description": "Read original evidence and page images. Supply ONE chunk_id, node_id, or doc_version + page_index. "
-            "Page indices are zero based; offsets are Unicode character offsets for continuing a long source. "
-            "To target one long node, use node_id rather than a multi-node chunk.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "chunk_id": {"type": "string"},
-                    "node_id": {"type": "string"},
-                    "doc_version": {"type": "string"},
-                    "page_index": {"type": "integer", "minimum": 0},
-                    "offset": {"type": "integer", "minimum": 0},
-                    "include_images": {"type": "boolean"},
-                    "mode": {
-                        "type": "string",
-                        "enum": ["fragment", "context", "node", "window", "parent", "children", "subtree"],
-                    },
-                    "radius": {"type": "integer", "minimum": 0, "maximum": 8},
-                    "depth": {"type": "integer", "minimum": 0, "maximum": 4},
-                    "node_start": {"type": "integer", "minimum": 0},
-                    "max_tokens": {"type": "integer", "minimum": 1},
-                },
-                "additionalProperties": False,
-            },
-        },
-    },
-]
 
 
 def parse_answer(text: str) -> dict:
@@ -96,346 +39,235 @@ def parse_answer(text: str) -> dict:
             raise ValueError("answer must be a string")
         if not isinstance(data.get("citations"), list):
             raise ValueError("citations must be a list")
-        return {"answer": data["answer"], "citations": data["citations"], "format_error": None}
+        result = {"answer": data["answer"], "citations": data["citations"], "format_error": None}
+        if 'coverage' in data: result['coverage'] = data['coverage']
+        return result
     except (ValueError, TypeError) as e:
         return {"answer": text, "citations": [], "format_error": f"Expected answer JSON: {e}"}
 
 
+
+
+
+def validate_coverage(answer, requested_items, evidence):
+    import jsonschema
+    schema={'type':'array','items':{'type':'object','properties':{
+        'item_id':{'type':'string'},'status':{'enum':['supported','partial','not_found']},
+        'evidence_ids':{'type':'array','items':{'type':'string'},'uniqueItems':True},
+        'scope_check':{'type':'string','minLength':1},'gaps':{'type':'string'}},
+        'required':['item_id','status','evidence_ids','scope_check','gaps'],'additionalProperties':False}}
+    try: jsonschema.validate(answer.get('coverage'),schema)
+    except jsonschema.ValidationError as e: raise ValueError('Invalid source coverage structure: '+e.message) from e
+    entries=answer['coverage'];expected={r['item_id'] for r in requested_items}
+    if len(entries)!=len(expected) or {r['item_id'] for r in entries}!=expected:
+        raise ValueError('Coverage must include every requested item exactly once')
+    for entry in entries:
+        if any(e not in evidence for e in entry['evidence_ids']):raise ValueError('Coverage cites unread evidence')
+        if entry['status']=='supported' and not entry['evidence_ids']:raise ValueError('Supported item needs original evidence')
+        if entry['status']!='supported' and not entry['gaps'].strip():raise ValueError('Incomplete item needs explicit gap')
+
+
 class QuestionRunner:
-    def __init__(
-        self, config: Config, store: Store, index: dict, api: ModelAPI, search: Search | None = None
-    ):
+    def __init__(self, config, store, index, api, search=None, *, original_index=None, catalog=None, original_search=None):
         self.config, self.store, self.index, self.api = config, store, index, api
-        self.reader = Reader(config, store, index)
+        self.original_index = original_index or index
+        self.reader = Reader(config, store, self.original_index)
         self.searcher = search or Search(config, store, index, api)
-        self.searcher.api = api
-        self.searcher.trace = []
-        self.trace: list[dict] = []
+        self.original_searcher = original_search
+        self.catalog = catalog or OriginalCatalog(store, self.original_index)
+        self.trace, self.model_messages, self.initial_ranking = [], [], []
         self.model_calls = self.tool_calls = 0
-        self.initial_ranking = []
-        self.initial_searched = False
-        self.model_messages = []
+        self.capacity = None
+        self.initial_snapshot = None
+        self.assembly = None
+        self.requested_items = None
+        self.initial_expansion = None
 
-    def _search(self, question: str, previews: bool) -> tuple[list[dict], dict]:
-        hits = self.searcher.search(question)
-        if not self.initial_searched:
-            self.initial_ranking = page_ranking(hits)
-            self.initial_searched = True
-        self.reader.retrieval_matches.update({c["id"]: c.get("matched_chunk_ids", [c["id"]]) for c in hits})
-        result = {
-            "documents": {s["doc_id"]: s["doc_version"] for c in hits for s in c["sources"]},
-            "page_index_origin": 0,
-            "hits": [
-                {
-                    "chunk_id": c["id"],
-                    "kind": c["kind"],
-                    "sources": [
-                        {"doc_id": doc, "page_index": page}
-                        for doc, page in sorted({(s["doc_id"], s["page_index"]) for s in c["sources"]})
-                    ],
-                    "score": c["score"],
-                    **({"preview": self.reader.preview(c)} if previews else {}),
-                }
-                for c in hits
-            ],
-        }
-        self.trace.append(self.searcher.trace[-1])
-        return hits, result
-
-    def _read(self, args: dict) -> dict:
-        result = self.reader.read(**args)
-        self.trace.append(self.reader.trace[-1])
-        return result
-
-    def _call(self, messages: list[dict], tools=None) -> dict:
-        self.model_calls += 1
-
-        def validate(message):
-            calls = message.get("tool_calls")
-            if calls:
-                if not tools or not isinstance(calls, list) or len(calls) > 64:
-                    raise ValueError("Invalid tool-call batch")
-                ids = set()
-                for call in calls:
-                    if not isinstance(call, dict) or not isinstance(call.get("id"), str) or call["id"] in ids:
-                        raise ValueError("Invalid tool-call ID")
-                    ids.add(call["id"])
-                    fn = call["function"]
-                    if not isinstance(fn, dict):
-                        raise ValueError("Invalid tool function")
-                    args = json.loads(fn["arguments"])
-                    if fn["name"] not in {"read", "search"} or not isinstance(args, dict):
-                        raise ValueError("Invalid tool arguments")
-                    if fn["name"] == "search":
-                        if (
-                            set(args) != {"query"}
-                            or not isinstance(args["query"], str)
-                            or not args["query"].strip()
-                        ):
-                            raise ValueError("Search requires one nonempty query")
-                    else:
-                        schema = TOOLS[1]["function"]["parameters"]["properties"]
-                        if (
-                            set(args) - schema.keys()
-                            or sum(args.get(k) is not None for k in ("chunk_id", "node_id", "doc_version"))
-                            != 1
-                        ):
-                            raise ValueError("Read requires exactly one source target")
-                        for key, value in args.items():
-                            spec = schema[key]
-                            typ = {"string": str, "integer": int, "boolean": bool}[spec["type"]]
-                            if (
-                                type(value) is not typ
-                                or ("minimum" in spec and value < spec["minimum"])
-                                or ("enum" in spec and value not in spec["enum"])
-                            ):
-                                raise ValueError("Invalid read argument type/range")
-            else:
-                parsed = parse_answer(message.get("content"))
-                check = validate_citations(parsed["citations"], self.reader.public_evidence())
-                if parsed["format_error"] or check["invalid"]:
-                    raise ValueError("Invalid answer JSON or evidence citations")
-
-        response = self.api.validated_chat("chat", messages, validate, tools)
-        self.model_messages.append(response)
-        return response
-
-    def direct(self, question: str) -> dict:
+    def search(self, query, *, bc_coverage=False):
+        self.searcher.api = self.api
+        if bc_coverage:
+            from .experiments import scheme
+            hits, trace = scheme('C' if self.index['kind']=='enriched' else 'B').retrieve(self, query)
+        else:
+            hits = self.searcher.search(query,final_k=self.config.retrieval.flat_final_k) if self.index['kind']=='flat' else self.searcher.search(query)
+            trace=self.searcher.trace[-1]
         self.tool_calls += 1
-        hits, _ = self._search(question, previews=False)
-        for hit in hits[: self.config.query.direct_read_hits]:
-            if not self.reader.remaining and len(self.reader.images) >= self.config.query.page_images:
-                break
-            self.tool_calls += 1
-            self._read(
-                {
-                    "chunk_id": hit["id"],
-                    "mode": "fragment",
-                    "include_images": self.index["kind"] != "flat",
-                }
-            )
-        # All high-ranking anchors receive a chance before neighbours use spare budget.
-        if self.index["kind"] != "flat":
-            for hit in hits[: self.config.query.direct_read_hits]:
-                if not self.reader.remaining:
-                    break
-                self.tool_calls += 1
-                self._read(
-                    {
-                        "chunk_id": hit["id"],
-                        "mode": "context",
-                        "radius": self.config.query.direct_window_radius,
-                        "include_images": False,
-                    }
-                )
-        message = self._call(
-            [
-                {"role": "system", "content": SYSTEM},
-                {"role": "user", "content": [{"type": "text", "text": question}, *self.reader.content()]},
-            ]
-        )
-        return parse_answer(message["content"])
+        self.trace.append(trace)
+        if not self.initial_ranking:
+            self.initial_ranking = page_ranking(hits)
+        return hits
 
-    def agentic(self, question: str) -> dict:
-        messages = [
-            {
-                "role": "system",
-                "content": SYSTEM
-                + AGENT_SYSTEM
-                + "You may search again and read sources within the shared budget. "
-                "The final call has tools disabled; answer from evidence already read.",
-            },
-            {"role": "user", "content": question},
-        ]
-        # An identical initial search makes the reported initial retrieval metric comparable to C.
-        if self.config.query.agent_tool_calls:
-            self.tool_calls += 1
-            hits, initial = self._search(question, previews=True)
-            messages.append(
-                {"role": "user", "content": "Initial search (not yet read): " + canonical(initial)}
-            )
-            for hit in hits[: self.config.query.agent_seed_hits]:
-                if self.tool_calls >= self.config.query.agent_tool_calls:
-                    break
-                self.tool_calls += 1
-                self._read({"chunk_id": hit["id"], "mode": "fragment"})
-            if self.reader.evidence:
-                messages.append({"role": "user", "content": self.reader.content()})
-        for step in range(self.config.query.agent_model_calls):
-            allow_tools = (
-                step < self.config.query.agent_model_calls - 1
-                and self.tool_calls < self.config.query.agent_tool_calls
-            )
-            if not allow_tools:
-                messages.append(
-                    {"role": "user", "content": "Tool budget ended. Produce the final answer JSON now."}
-                )
-            message = self._call(messages, TOOLS if allow_tools else None)
-            tool_calls = message.get("tool_calls")
-            if not tool_calls:
-                if not self.reader.evidence:
-                    raise RagError("Agent produced an answer without reading original evidence.")
-                return parse_answer(message["content"])
-            if not isinstance(tool_calls, list) or len(tool_calls) > 64:
-                raise RagError("Invalid or excessive tool-call batch from model.")
-            messages.append(message)
-            before = set(self.reader.evidence)
-            call_ids = set()
-            for call in tool_calls:
-                if (
-                    not isinstance(call, dict)
-                    or not isinstance(call.get("id"), str)
-                    or call["id"] in call_ids
-                ):
-                    raise RagError("Missing/duplicate tool-call ID.")
-                call_ids.add(call["id"])
-                if self.tool_calls >= self.config.query.agent_tool_calls:
-                    result = {"error": "Tool-call cap reached; request was not executed."}
-                    self.trace.append({"tool": "rejected", "reason": "tool_cap", "tool_call_id": call["id"]})
-                else:
-                    self.tool_calls += 1
-                    try:
-                        function = call["function"]
-                        args = json.loads(function["arguments"])
-                        if not isinstance(args, dict):
-                            raise ValueError("Tool arguments must be an object")
-                        if function["name"] == "search" and set(args) == {"query"}:
-                            _, result = self._search(args["query"], previews=True)
-                        elif function["name"] == "read":
-                            result = self._read(args)
-                        else:
-                            raise ValueError("Unknown tool or invalid arguments")
-                    except (KeyError, ValueError, TypeError, RagError) as e:
-                        result = {"error": str(e)}
-                        self.trace.append({"tool": "error", "tool_call_id": call["id"], "error": str(e)})
-                messages.append({"role": "tool", "tool_call_id": call["id"], "content": canonical(result)})
-            evidence_parts = self.reader.content(set(self.reader.evidence) - before)
-            if evidence_parts:
-                # Chat Completions supports images on user messages, not tool messages.
-                messages.append({"role": "user", "content": evidence_parts})
-        raise RagError("Agent exhausted its model-call limit without a final answer.")
-
-    def run(self, question: dict, arm: str) -> dict:
-        start = time.perf_counter()
-        self.reader.question = question["query"]
-        record = {
-            **question,
-            "arm": arm,
-            "index_id": self.index["id"],
-            "status": "failed",
-            "answer": None,
-            "citations": [],
-            "error": None,
-        }
+    def call(self, messages, *, tools=None, plan=False, forced=False):
+        if self.capacity:
+            messages = self.capacity.fit(messages, tools, self.trace)
+        self.model_calls += 1
+        if self.capacity and self.model_calls > (25 if forced else 24):
+            raise RagError("D logical model call boundary exceeded")
+        # ModelAPI stores the exact canonical body, compressed and SHA-bound.
+        # Do not duplicate every inline image in every growing history snapshot.
+        self.model_messages.append({'logical_call': self.model_calls, 'messages_sha256': digest(messages),
+                                    'roles': [m['role'] for m in messages],
+                                    'full_body_location': 'request_payloads via api_calls request_body_sha256'})
+        before = len(self.api.store.calls(self.api.context))
+        def validate(m):
+            if plan:
+                value = json.loads(m['content'])
+                if (not isinstance(value, dict) or not isinstance(value.get('query'), str)
+                    or not value['query'].strip() or not isinstance(value.get('requested_items'), list)):
+                    raise ValueError('Return query and requested_items')
+                return
+            if m.get('tool_calls'):
+                if not tools: raise ValueError('Tools are closed; return the final answer')
+                if self.capacity:
+                    # D receives narrow tool errors in its next logical turn instead
+                    # of spending physical retries on unsupported modes/arguments.
+                    for tc in m['tool_calls']:
+                        if not isinstance(tc.get('id'),str) or not isinstance(tc.get('function'),dict):
+                            raise ValueError('Tool calls need an id and function')
+                    return
+                import jsonschema
+                schemas = {t['function']['name']: t['function']['parameters'] for t in tools}
+                for tc in m['tool_calls']:
+                    fn = tc.get('function', {})
+                    if fn.get('name') not in schemas: raise ValueError('Unknown source tool')
+                    try: jsonschema.validate(json.loads(fn['arguments']), schemas[fn['name']])
+                    except jsonschema.ValidationError as e: raise ValueError('Invalid tool arguments: '+e.message) from e
+                return
+            if self.capacity:
+                answer = parse_final(m.get('content'))
+                m['content'] = canonical(answer)
+                return
+            answer = parse_answer(m.get('content'))
+            if answer['format_error'] or not answer['answer'].strip():
+                raise ValueError('Invalid final answer JSON')
+            check = validate_citations(answer['citations'], self.reader.public_evidence())
+            if check['invalid'] or (self.reader.evidence and not answer['citations']):
+                raise ValueError('Final citations must bind actual originals')
+            if self.requested_items is not None:
+                validate_coverage(answer,self.requested_items,self.reader.evidence)
         try:
-            result = self.agentic(question["query"]) if arm == "D" else self.direct(question["query"])
-            record.update(result)
-            record["status"] = "format_error" if result["format_error"] else "ok"
+            kwargs = {}
+            if self.capacity:
+                kwargs = {'prepare_request':lambda m,t:self.capacity.fit(m,t,self.trace),
+                          'repair_instruction':'Return a nonempty answer. Final JSON example: {"answer":"English answer","citations":["E1","E2"]}. coverage is optional. Use only actually read IDs.'}
+            try:
+                return self.api.validated_chat('chat', messages, validate, tools=tools, json_output=not tools, **kwargs)
+            except APIError as error:
+                if not self.capacity or error.status_code!=400 or error.diagnostics.get('param')!='input_tokens': raise
+                smaller=self.capacity.after_rejection(messages,tools,self.trace,error.diagnostics)
+                if smaller==messages: raise
+                # One changed request within the same logical call. A second capacity
+                # rejection propagates; no identical-request or unbounded retry loop.
+                return self.api.validated_chat('chat',smaller,validate,tools=tools,json_output=not tools,**kwargs)
+        finally:
+            self.trace.append({'tool': 'model_call', 'logical_call': self.model_calls,
+                               'phase': 'rewrite' if plan else 'forced_final' if forced else 'answer_or_explore',
+                               'tools_enabled': bool(tools),
+                               'physical_requests': len(self.api.store.calls(self.api.context))-before})
+
+    def direct(self, question, saved=None, *, expanded_BC=False):
+        from .experiments import scheme
+        arm = 'pre-D' if saved else ('C' if self.index['kind']=='enriched' else 'B') if expanded_BC else 'A'
+        return scheme(arm).execute(self, question, saved)
+    def agentic(self, question, saved=None, save_initial=None):
+        from .experiments.d import execute
+        return execute(self, question, saved, save_initial)
+    def run(self, question, arm, *, initial=None, save_initial=None):
+        start = time.perf_counter(); self.reader.question = question['query']
+        record = {'query_id':question['query_id'],'query':question['query'],'arm':arm,
+                  'index_id':self.index['id'],'status':'failed','answer':None,'citations':[], 'error':None}
+        try:
+            if arm == 'pre-D' and initial is None: raise RagError('D first evidence snapshot is not available yet')
+            from .experiments import scheme
+            result = scheme(arm).execute(self, question['query'], initial, save_initial)
+            record.update(result);record['status']='ok'
         except Exception as e:
-            record["error"] = {"type": type(e).__name__, "message": str(e)}
+            if fatal_provider_error(e): raise
+            record['error']={'type':type(e).__name__,'message':str(e)}
         evidence = self.reader.public_evidence()
-        record.update(
-            evidence=evidence,
-            citation_check=validate_citations(record["citations"], evidence),
-            initial_page_ranking=self.initial_ranking,
-            trace=self.trace,
-            model_messages=self.model_messages,
-            text_tokens_read=self.reader.text_used,
-            preview_tokens_read=self.reader.preview_used,
-            searched_page_union=list(
-                {
-                    (p["doc_id"], p["page_index"]): p
-                    for t in self.trace
-                    if t.get("tool") == "search"
-                    for p in t.get("page_ranking", [])
-                }.values()
-            ),
-            page_images_read=len(self.reader.images),
-            model_calls=self.model_calls,
-            tool_calls=self.tool_calls,
-            elapsed_seconds=time.perf_counter() - start,
-            api_usage=usage_summary(self.store.calls(self.api.context)),
-        )
+        if arm=='D' and record['status']=='ok':
+            record['coverage_diagnostic']={'present':'coverage' in record,'required':False}
+            if 'coverage' in record:
+                try:validate_coverage(record,self.requested_items,self.reader.evidence)
+                except (ValueError,TypeError) as error:record['coverage_diagnostic']['issue']=str(error)
+        record.update(initial_expansion=self.initial_expansion,evidence=evidence, citation_check=validate_citations(record['citations'],evidence),
+                      initial_page_ranking=self.initial_ranking,trace=self.trace,
+                      fixed_assembly=self.assembly,model_messages=self.model_messages,
+                      text_tokens_read=self.reader.text_used,preview_tokens_read=self.reader.preview_used,
+                      page_images_read=len(self.reader.images),model_calls=self.model_calls,tool_calls=self.tool_calls,
+                      searched_page_union=list({(p['doc_id'],p['page_index']):p for t in self.trace if t.get('tool')=='search' for p in t.get('page_ranking',[])}.values()),
+                      elapsed_seconds=time.perf_counter()-start,api_usage=usage_summary(self.api.store.calls(self.api.context)),
+                      initial_snapshot_sha256=self.initial_snapshot['sha256'] if self.initial_snapshot else None,
+                      capacity_evidence=self.capacity.identity if self.capacity else None)
         return record
 
 
-def run(
-    config: Config,
-    store: Store,
-    run_id: str,
-    arms: list[str],
-    limit: int | None = None,
-    retry_errors: bool = False,
-) -> dict:
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", run_id):
-        raise RagError("Run ID must be 1-80 letters, digits, underscores or hyphens.")
-    config.models.embedding.require("embedding")
-    config.models.chat.require("chat")
-    manifest = dataset(store, verify_pdfs=True, verify_queries=True)
-    queries = read_jsonl(Path(manifest["prepared_dir"]) / "queries.jsonl")
-    if limit is not None:
-        queries = queries[:limit]
-    indices = {kind: current_index(config, store, kind) for kind in dict.fromkeys(ARMS[a] for a in arms)}
-    settings = config.portable_settings()
-    settings.pop("pricing")
-    settings["models"].pop("judge")
-    run_manifest = {
-        "id": run_id,
-        "dataset": store.portable(manifest),
-        "config": settings,
-        "implementation": implementation(),
-        "arms": arms,
-        "indices": {k: v["id"] for k, v in indices.items()},
-        "queries": queries,
-        "synthetic": manifest["synthetic"],
-        "query_embedding_policy": "prewarm original questions equally before timed queries",
-        "full_benchmark": not manifest["synthetic"]
-        and len(queries) == 309
-        and manifest["counts"] == {"documents": 6, "pages": 2942, "queries": 309}
-        and set(arms) == set(ARMS),
-    }
-    old = store.db.execute("SELECT payload FROM runs WHERE id=?", (run_id,)).fetchone()
-    if old and digest(json.loads(old[0])) != digest(run_manifest):
-        raise RagError("Run ID already binds different data/config/code/selection. Choose a new --run ID.")
-    store.put("runs", run_id, run_manifest)
-    out = config.work_dir / "runs" / run_id
-    write_json(out / "manifest.json", run_manifest)
-    previous = {(r["arm"], r["query_id"]): r for r in store.records(run_id)}
-    # Matrices are loaded once per unique index; C and D share the same Search/index object.
-    searchers = {
-        k: Search(config, store, v, ModelAPI(config, store, "setup:" + run_id)) for k, v in indices.items()
-    }
-    warm_context = "query-embeddings:" + run_id
-    ModelAPI(config, store, warm_context).embed([q["query"] for q in queries])
-    store.set_meta(warm_context, usage_summary(store.calls(warm_context)))
-    for arm in arms:
+def run(config, store, run_id, arms, limit=None, retry_errors=False, query_ids=None, recovery_round=None, identity_arms=None, snapshot_store=None, snapshot_run_id=None):
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',run_id): raise RagError('Invalid run ID')
+    if not arms or len(set(arms)) != len(arms) or set(arms)-set(ARMS): raise RagError('Invalid experimental arms')
+    identity_arms = identity_arms or arms
+    if set(arms)-set(identity_arms): raise RagError('Arm outside frozen execution scope')
+    if 'pre-D' in arms and 'D' not in arms and not snapshot_run_id:
+        raise RagError('pre-D requires D snapshots: specify an existing snapshot run')
+    if 'D' in arms: Capacity(config)  # Fail before spending on any arm if capacity is unattested.
+    config.models.embedding.require('embedding');config.models.chat.require('chat')
+    manifest=dataset(store,verify_queries=True)
+    queries=read_jsonl(Path(manifest['prepared_dir'])/'queries.jsonl')
+    if query_ids is not None:
+        if len(set(query_ids))!=len(query_ids) or set(query_ids)-{q['query_id'] for q in queries} or limit is not None: raise RagError('Invalid fixed selection')
+        queries=[q for q in queries if q['query_id'] in set(query_ids)]
+    if limit is not None:queries=queries[:limit]
+    if config.query.source_work_dir and getattr(store,'source_store',None) is None:
+        store.source_store=Store(config.query.source_work_dir,read_only=True)
+    source=getattr(store,'source_store',None) or store
+    dataset(source,verify_pdfs=True)
+    if 'pre-D' in arms and 'D' not in arms:
         for q in queries:
-            key = (arm, q["query_id"])
-            prior = previous.get(key)
-            if prior and (prior["status"] == "ok" or not retry_errors):
-                continue
-            attempt = (prior.get("attempt", 1) + 1) if prior else 1
-            context = f"run:{run_id}:{arm}:{q['query_id']}:{attempt}"
-            worker = QuestionRunner(
-                config, store, indices[ARMS[arm]], ModelAPI(config, store, context), searchers[ARMS[arm]]
-            )
-            result = worker.run(q, arm)
-            result.update(run_id=run_id, attempt=attempt, synthetic=manifest["synthetic"])
-            if prior:
-                result["previous_attempts"] = [
-                    *prior.get("previous_attempts", []),
-                    {k: v for k, v in prior.items() if k != "previous_attempts"},
-                ]
-            store.save_record(run_id, arm, q["query_id"], result)
-            print(f"{run_id} {arm} {q['query_id']}: {result['status']}", flush=True)
-        # SQLite checkpoints every question; export once per arm to avoid quadratic writes on full runs.
-        write_jsonl(out / "results.jsonl", store.records(run_id))
-    records = store.records(run_id)
-    return {
-        "run": run_id,
-        "synthetic": manifest["synthetic"],
-        "full_benchmark": run_manifest["full_benchmark"],
-        "records": len(records),
-        "failures": sum(r["status"] != "ok" for r in records),
-        "output": str(out),
-    }
+            value=(snapshot_store or store).cached(digest(['initial-evidence-v1',snapshot_run_id,q['query_id']]))
+            if not value or value['packet']['question']!=q['query']:
+                raise RagError('pre-D requires complete matching D first snapshots before any API request')
+    kinds=set(ARMS[a] for a in identity_arms)
+    if 'C' in identity_arms:kinds.add('structured')
+    indices={k:current_index(config,source,k) for k in sorted(kinds)}
+    settings=config.portable_settings();settings.pop('pricing');settings['models'].pop('judge')
+    rm={'id':run_id,'dataset':store.portable(manifest),'config':settings,'implementation':implementation(),
+        'arms':identity_arms,'indices':{k:v['id'] for k,v in indices.items()},'queries':queries,'synthetic':manifest['synthetic'],
+        'contract':config.query.contract,'full_benchmark':len(queries)==296 and set(identity_arms)==set(ARMS)}
+    old=store.db.execute('SELECT payload FROM runs WHERE id=?',(run_id,)).fetchone()
+    if old:
+        prior_run=json.loads(old[0])
+        if {k:v for k,v in prior_run.items() if k!='implementation'} != {k:v for k,v in rm.items() if k!='implementation'}:
+            raise RagError('Run options, questions or source identities changed')
+        rm=prior_run
+    store.put('runs',run_id,rm);out=config.work_dir/'runs'/run_id;write_json(out/'manifest.json',rm)
+    previous={(r['arm'],r['query_id']):r for r in store.records(run_id)}
+    catalogs={k:OriginalCatalog(source,v) for k,v in indices.items() if k!='enriched'}
+    searchers={k:Search(config,source,v,ModelAPI(config,store,'setup:'+run_id)) for k,v in indices.items()}
+    order=[a for a in ['A','B','C','D','pre-D'] if a in arms]
+    for arm in order:
+        for q in queries:
+            prior=previous.get((arm,q['query_id']))
+            if prior and (prior['status']=='ok' or not retry_errors or prior.get('attempt',1)>=4):continue
+            if recovery_round is not None and prior and prior.get('attempt',1) >= recovery_round+1:continue
+            attempt=prior.get('attempt',1)+1 if prior else 1
+            api=ModelAPI(config,store,f"run:{run_id}:{arm}:{q['query_id']}:{attempt}")
+            kind=ARMS[arm];base='structured' if kind=='enriched' else kind
+            worker=QuestionRunner(config,source,indices[kind],api,searchers[kind],original_index=indices[base],catalog=catalogs[base],
+                                  original_search=searchers.get('structured') if arm=='C' else None)
+            key=digest(['initial-evidence-v1',run_id,q['query_id']])
+            initial=store.cached(key) if arm in {'D','pre-D'} else None
+            if arm=='pre-D' and snapshot_run_id:
+                initial=(snapshot_store or store).cached(digest(['initial-evidence-v1',snapshot_run_id,q['query_id']]))
+            def save(packet):
+                old=store.cached(key)
+                if old and old['packet']!=packet['packet']:raise RagError('Cannot overwrite an existing first snapshot')
+                store.cache(key,packet)
+            result=worker.run(q,arm,initial=initial,save_initial=save)
+            result.update(run_id=run_id,attempt=attempt,synthetic=manifest['synthetic'])
+            if prior:result['previous_attempts']=[*prior.get('previous_attempts',[]),{k:v for k,v in prior.items() if k!='previous_attempts'}]
+            store.save_record(run_id,arm,q['query_id'],result);previous[arm,q['query_id']]=result
+            print(f"{run_id} {arm} {q['query_id']}: {result['status']}",flush=True)
+        write_jsonl(out/'results.jsonl',store.records(run_id))
+    records=store.records(run_id)
+    return {'run':run_id,'records':len(records),'failures':sum(r['status']!='ok' for r in records),
+            'output':str(out),'synthetic':manifest['synthetic'],'full_benchmark':rm['full_benchmark']}

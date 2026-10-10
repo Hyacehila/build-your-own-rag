@@ -23,7 +23,7 @@ from docling_core.types.doc import (
 )
 from lxml import html
 
-from .common import RagError, digest, read_json, sha256, write_json
+from .common import RagError, digest, read_json, write_json
 from .parsing import docling_nodes
 
 CONTRACT = "mineru-content-list-v1-to-docling-v1"
@@ -203,8 +203,6 @@ def import_trial(store, bundle):
             continue
         entry = entries[result["data_id"]]
         path = Path(result["zip_file"])
-        if sha256(path) != result["sha256"]:
-            raise RagError("MinerU archive checksum changed.")
         with zipfile.ZipFile(path) as archive:
             if sum(x.file_size for x in archive.infolist()) > 300_000_000:
                 raise RagError("MinerU archive exceeds expanded-size limit.")
@@ -233,8 +231,6 @@ def import_trial(store, bundle):
         dest = bundle / "converted" / entry["data_id"]
         write_json(dest / "document.json", doc.model_dump(mode="json"))
         original = store.get("documents", entry["doc_version"])
-        if original["sha256"] != entry["original_sha256"]:
-            raise RagError("Original PDF version differs from the MinerU page mapping.")
         nodes = docling_nodes(doc, original, pid)
         for node in nodes:
             if node["ref"] in report["page_only_refs"]:

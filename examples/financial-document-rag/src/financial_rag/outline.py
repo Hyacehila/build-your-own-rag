@@ -5,7 +5,7 @@ from collections import Counter
 
 from docling_core.types.doc import GroupItem, GroupLabel, SectionHeaderItem, TitleItem
 
-from .common import RagError, digest
+from .common import RagError
 
 
 def fingerprint_content(document):
@@ -18,12 +18,11 @@ def fingerprint_content(document):
         return value
 
     # Structural groups may be added; actual content objects must be unchanged.
-    return digest(
-        [
-            clean([x.model_dump(mode="json") for x in getattr(document, k)])
-            for k in ("texts", "tables", "pictures", "key_value_items", "form_items")
-        ]
-    )
+    return [
+        clean([x.model_dump(mode="json") for x in getattr(document, k)])
+        for k in ("texts", "tables", "pictures", "key_value_items", "form_items")
+    ]
+
 
 
 def rebuild_scoped(document, boundaries, former_heading_refs=None):

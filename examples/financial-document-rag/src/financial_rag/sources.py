@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import re
 import time
 
 from .common import RagError, digest
@@ -32,17 +31,19 @@ def render_source(store: Store, source: dict, scale: float, crop: bool = False) 
 
 
 class Reader:
-    """The shared source service and hard evidence budget for every arm.
+    """Shared original-source service: fixed one-shot packets and unbounded D reads.
 
-    Search previews have a separate bounded budget; original evidence has its own budget.
+    One-shot packets have a text budget; subsequent D reads have no cumulative text limit.
     Citation IDs are minted only after actual text/image reads, never by search.
     Text source-page coverage is conservative for multi-page table nodes: a full
     table read covers all its pages; partial text with ambiguous page offsets
     covers none until those page images or individually located nodes are read.
     """
 
-    def __init__(self, config: Config, store: Store, index: dict):
+    def __init__(self, config: Config, store: Store, index: dict, *, unbounded: bool = False, image_limit: int | None = None):
         self.config, self.store, self.index = config, store, index
+        self.unbounded = unbounded
+        self.image_limit = config.query.page_images if image_limit is None else image_limit
         self.tokenizer = Tokenizer(config.tokenizer)
         self.text_used = 0
         self.preview_used = 0
@@ -59,7 +60,7 @@ class Reader:
 
     @property
     def remaining(self) -> int:
-        return max(0, self.config.query.text_tokens - self.text_used)
+        return float("inf") if self.unbounded else max(0, self.config.query.text_tokens - self.text_used)
 
     def preview(self, chunk: dict) -> str:
         if chunk["id"] not in self.preview_cache:
@@ -141,7 +142,7 @@ class Reader:
         page_key = f"{source['doc_version']}:{source['page_index']}"
         if page_key in self.images:
             return {"evidence_id": self.images[page_key], "cached": True}
-        if len(self.images) >= self.config.query.page_images:
+        if len(self.images) >= self.image_limit:
             return {"status": "image_budget_exhausted"}
         eid = f"E{len(self.evidence) + 1}"
         data = render_source(self.store, source, self.config.query.image_scale)
@@ -209,25 +210,9 @@ class Reader:
         return output
 
     def _original_fragments(self, chunk: dict) -> list[dict]:
-        if not chunk.get("enrichment_id"):
-            matches = self.retrieval_matches.get(chunk["id"], [chunk["id"]])
-            originals = [self.store.get("chunks", cid) for cid in matches]
-            return [c for c in originals if not c.get("enrichment_id")][
-                : self.config.query.asset_read_fragments
-            ]
-        assets = set(chunk.get("asset_ids", []))
-        candidates = [
-            c
-            for c in self.store.chunks(self.index["id"])
-            if not c.get("enrichment_id") and assets.intersection(c.get("asset_ids", []))
-        ]
-        terms = set(re.findall(r"\w+", self.question.lower()))
-        # A summary hit is a pointer to its source. Select original rows using the actual
-        # question, not benchmark labels or generated numbers; expose images as fallback.
-        candidates.sort(
-            key=lambda c: (-len(terms.intersection(re.findall(r"\w+", c["text"].lower()))), c["id"])
-        )
-        return candidates[: self.config.query.asset_read_fragments]
+        if chunk.get("enrichment_id"):
+            raise RagError("Reader accepts originals only; resolve summary pointers before reading")
+        return [chunk]
 
     def _page(self, version: str, page_index: int, offset: int, include_images: bool) -> list[dict]:
         import pymupdf
@@ -284,7 +269,7 @@ class Reader:
                 isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1
             ):
                 raise RagError("max_tokens must be a positive integer.")
-            self._read_limit = self.text_used + min(
+            self._read_limit = (self.text_used + max_tokens if max_tokens is not None else float("inf")) if self.unbounded else self.text_used + min(
                 max_tokens or self.config.query.read_max_tokens, self.config.query.read_max_tokens
             )
 
@@ -347,8 +332,9 @@ class Reader:
                 "results": result,
                 "expanded_nodes": expanded[node_start : node_start + 64],
                 "next_node_start": next_node_start,
-                "remaining_text_tokens": self.remaining,
-                "remaining_page_images": self.config.query.page_images - len(self.images),
+                "remaining_text_tokens": None if self.unbounded else self.remaining,
+                "text_limit_mode": "unbounded" if self.unbounded else "fixed_packet",
+                "remaining_page_images": max(0, self.image_limit - len(self.images)),
                 "preview_tokens_used": self.preview_used,
             }
             trace["status"] = "ok"

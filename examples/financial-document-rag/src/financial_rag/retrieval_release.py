@@ -28,9 +28,7 @@ def prepare(config, database, pdf_dir):
     """Copy the accepted release once; restarting never overwrites a working database."""
     sidecar = database.with_suffix(".json")
     if sidecar.exists():
-        published = json.loads(sidecar.read_text(encoding="utf-8"))
-        if published.get("sha256") and sha256(database) != published["sha256"]:
-            raise RagError("Published retrieval database checksum mismatch.")
+        _published = json.loads(sidecar.read_text(encoding="utf-8"))
     with sqlite3.connect(f"file:{database.resolve().as_posix()}?mode=ro", uri=True) as source:
         row = source.execute("SELECT value FROM metadata WHERE key='fact_release'").fetchone()
         if not row:
@@ -149,8 +147,8 @@ def check(config, store, *, require_vectors=True):
                 body = [n for n in items if n["kind"] in BODY_KINDS]
                 if len({(n["parent_id"], n["section_id"]) for n in body}) > 1:
                     raise RagError("Body merge crossed a parent/section boundary.")
-            original_sources = {digest(s) for n in items for s in n["sources"]}
-            if any(digest(s) not in original_sources for s in c["sources"]):
+            original_sources = {canonical(s) for n in items for s in n["sources"]}
+            if any(canonical(s) not in original_sources for s in c["sources"]):
                 raise RagError("Chunk source differs from its original fact coordinates.")
             max_tokens = max(max_tokens, tokenizer.count(c["text"]))
             for src in c["sources"]:

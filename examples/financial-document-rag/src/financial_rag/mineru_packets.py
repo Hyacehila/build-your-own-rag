@@ -1,7 +1,6 @@
 """Explicit one-document MinerU comparison, separate from the eight-page smoke test."""
 
 import os
-from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
@@ -14,7 +13,7 @@ from .mineru_cloud import BASE_URL, _request
 def prepare_document(doc, annotation, output, core_size=190, overlap=2, selected_pages=None):
     if not 1 <= core_size <= 196 or not 0 <= overlap <= 2 or core_size + 2 * overlap > 200:
         raise RagError("Document packets must stay below the 200-page API limit.")
-    if annotation["doc_id"] != doc["doc_id"] or annotation["pdf_sha256"] != sha256(Path(doc["pdf_path"])):
+    if annotation["doc_id"] != doc["doc_id"]:
         raise RagError("Exclusion annotation belongs to another PDF.")
     excluded = {x["page_number"] for x in annotation["pages"]}
     if not excluded <= set(range(1, doc["pages"] + 1)):
@@ -97,8 +96,8 @@ def submit_document(bundle, client=None):
     owner_pages = []
     for f in files:
         path = (bundle / f["filename"]).resolve()
-        if not path.is_relative_to(bundle.resolve()) or sha256(path) != f["sha256"]:
-            raise RagError("Packet path or checksum mismatch.")
+        if not path.is_relative_to(bundle.resolve()):
+            raise RagError("Packet path escapes its bundle.")
         with pymupdf.open(path) as pdf:
             if len(pdf) != len(f["pages"]) or not 1 <= len(pdf) <= 200 or path.stat().st_size > 200_000_000:
                 raise RagError("Packet exceeds API limits or page mapping differs.")
