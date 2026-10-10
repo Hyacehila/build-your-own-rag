@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import tomllib
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,12 +51,48 @@ def project_path(path: Path) -> Path:
     return path
 
 
+def require_material(root: Path, names: tuple[str, ...], purpose: str, next_step: str) -> None:
+    missing = [str(root / name) for name in names if not (root / name).is_file()]
+    if missing:
+        raise RagError(f'Missing {purpose}: ' + ', '.join(missing) + '. ' + next_step)
+
+
+def freeze_model_routes(settings: str, cfg) -> str:
+    """Write resolved URLs, never environment references, into a new plan."""
+    for name, role in tomllib.loads(settings).get('models', {}).items():
+        if 'base_url_env' not in role:
+            continue
+        pattern = rf'(?ms)(^\[models\.{re.escape(name)}\][^\n]*\n)(.*?)(?=^\[|\Z)'
+        def replace(match):
+            body, count = re.subn(r'(?m)^base_url_env\s*=.*$',
+                                 lambda _: 'base_url = ' + json.dumps(getattr(cfg.models, name).base_url),
+                                 match[2])
+            if count != 1:
+                raise RagError(f'Use a standalone base_url_env line in [models.{name}]')
+            return match[1] + body
+        settings, count = re.subn(pattern, replace, settings)
+        if count != 1:
+            raise RagError(f'Use a standalone [models.{name}] table for environment routing')
+    return settings
+
+
 def check_inputs(config_path: Path, cohort: Path, selection: Path, *, full: bool = False) -> tuple[dict, dict]:
     config_path, cohort, selection = map(project_path, (config_path, cohort, selection))
+    require_material(config_path.parent, (config_path.name,), 'experiment configuration',
+                     'Pass --config with a configured TOML file; see OPERATIONS.md.')
     cfg = load_config(config_path)
     if not cfg.query.source_work_dir or not cfg.query.capacity_evidence_path:
         raise RagError('Configure the frozen source workspace and capacity evidence')
     source_root = project_path(cfg.query.source_work_dir)
+    require_material(source_root, ('experiment.sqlite',), 'source database',
+                     'Prepare reviewed document facts and the flat/structured/enriched indices, '
+                     'then set query.source_work_dir. Git does not contain the historical source database; see OPERATIONS.md.')
+    require_material(cohort, ('manifest.json', 'queries.jsonl', 'labels.jsonl'), 'fixed cohort',
+                     'Supply the matching cohort with --cohort; keep its original questions and labels. '
+                     'The formal driver does not derive or invent historical selections; see OPERATIONS.md.')
+    if not full:
+        require_material(selection.parent, (selection.name,), 'pilot selection',
+                         'Pass --selection with an explicit fixed question list, or use --scope full for the complete cohort.')
     project_path(cfg.query.capacity_evidence_path)
     capacity = Capacity(cfg)
     proof_reference = capacity.proof.get('probe_response_sha256')
@@ -148,6 +185,10 @@ def prepare(config_path: Path, cohort: Path, selection: Path, output: Path, run_
             raise RagError('Reused D/pre-D delivery requires a new ABC full plan')
         from experiment_reuse import verify
         reuse_material = project_path(reuse_material)
+        require_material(reuse_material, ('manifest.json', 'reuse.sqlite', 'queries.jsonl', 'labels.jsonl'),
+                         'D/pre-D reuse material',
+                         'Provide the original extracted material with --reuse-material, or omit that option '
+                         'for a new run without historical D/pre-D results. Never fabricate reused scores.')
         verify(reuse_material)
         reuse_manifest = read_json(reuse_material/'manifest.json')
         if (set(reuse_manifest['query_ids']) != set(inputs['query_ids'])):
@@ -156,13 +197,13 @@ def prepare(config_path: Path, cohort: Path, selection: Path, output: Path, run_
             if read_jsonl(reuse_material/name) != read_jsonl(cohort/name):
                 raise RagError('Reused D/pre-D questions or labels differ')
         reused = {'path':str(reuse_material),'source_run_id':reuse_manifest['source_run_id']}
+    settings = freeze_model_routes(config_path.read_text(encoding='utf-8'), cfg)
     output.mkdir(parents=True)
     prepared = output / 'runtime/prepared'
     prepared.mkdir(parents=True)
     for name in ('queries.jsonl', 'labels.jsonl', 'manifest.json'):
         shutil.copy2(cohort / name, prepared / name)
-    settings = config_path.read_text(encoding='utf-8')
-    # Resolve paths before moving the configuration; all behavioral settings stay byte-for-byte intact.
+    # Resolve routes and paths before moving; model parameters and strategy stay intact.
     settings = re.sub(r'(?m)^work_dir\s*=.*$', 'work_dir = "runtime"', settings, count=1)
     for key, value in [('source_work_dir', cfg.query.source_work_dir),
                        ('capacity_evidence_path', cfg.query.capacity_evidence_path)]:
@@ -243,6 +284,8 @@ def check_plan(path: Path, *, require_credentials: bool = False) -> dict:
     if plan.get('reuse_material'):
         from experiment_reuse import verify
         material=plan['reuse_material']
+        require_material(Path(material['path']), ('manifest.json', 'reuse.sqlite', 'queries.jsonl', 'labels.jsonl'),
+                         'D/pre-D reuse material', 'Restore the original material at the plan path before reviewing this delivery.')
         verify(Path(material['path']))
     if cfg.work_dir != path.parent / 'runtime':
         raise RagError('Runtime must be isolated inside the new experiment directory')
@@ -300,7 +343,20 @@ def main():
     args = parser.parse_args()
     try:
         if args.check:
-            summary, _ = check_inputs(args.config, args.cohort, args.selection, full=args.scope == 'full')
+            summary, inputs = check_inputs(args.config, args.cohort, args.selection, full=args.scope == 'full')
+            if args.reuse_material:
+                if args.scope != 'full' or args.arms != ['A', 'B', 'C']:
+                    raise RagError('Reused D/pre-D delivery requires a new ABC full plan')
+                material = project_path(args.reuse_material)
+                require_material(material, ('manifest.json', 'reuse.sqlite', 'queries.jsonl', 'labels.jsonl'),
+                                 'D/pre-D reuse material', 'Supply the original extracted package with --reuse-material; see OPERATIONS.md.')
+                from experiment_reuse import verify
+                summary['reuse_verification'] = verify(material)
+                if set(read_json(material/'manifest.json')['query_ids']) != set(inputs['query_ids']):
+                    raise RagError('Reused D/pre-D cohort differs from the selected questions')
+                for name in ('queries.jsonl', 'labels.jsonl'):
+                    if read_jsonl(material/name) != read_jsonl(args.cohort/name):
+                        raise RagError('Reused D/pre-D questions or labels differ')
         else:
             if not args.run_id:
                 parser.error('--output requires --run-id')

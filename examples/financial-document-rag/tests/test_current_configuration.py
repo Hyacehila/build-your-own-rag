@@ -10,7 +10,10 @@ from financial_rag.context_capacity import Capacity
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_main_configuration_is_the_accepted_strategy():
+def test_main_configuration_is_the_accepted_strategy(monkeypatch):
+    # The checked-in capacity record is historical; no live gateway is contacted.
+    proof = json.loads((ROOT / 'config/gateway-capacity.json').read_text())
+    monkeypatch.setenv('FINANCIAL_RAG_BASE_URL', proof['base_url'])
     cfg = load_config(ROOT / 'config.toml')
     assert (cfg.retrieval.sparse_k, cfg.retrieval.dense_k, cfg.retrieval.rrf_k, cfg.retrieval.final_k) == (50, 50, 20, 20)
     assert cfg.query.bc_assembly == 'BC-source-priority-v3'

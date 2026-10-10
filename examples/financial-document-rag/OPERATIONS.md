@@ -4,9 +4,50 @@
 
 ## 配置与准备
 
+### 网关与凭据
+
+`config.toml` 的 chat、vision、judge 使用 `base_url_env = "FINANCIAL_RAG_BASE_URL"`。读取配置时从进程环境或配置文件同目录的 `.env` 解析，进程环境优先；缺失或不合法时立即停止，不发送请求。地址必须是无凭据、无查询参数的 HTTP(S) API URL，包含实际 API 前缀。embedding 地址仍使用原提供商设置。
+
+`.env.example` 仅列变量名和说明。已有 `.env` 不要覆盖；密钥填写 `NEW_API_KEY`、`DASHSCOPE_API_KEY`，可选 MinerU 功能另用 `MINERU_API_KEY`。不要提交真实 `.env`。
+
+新计划的 `experiment.toml` 保存已解析的 `base_url`，不再保存 `base_url_env`。已有计划中的固定地址不受环境变量影响；两种字段不能同时配置。相同实际地址、模型和参数继续得到相同模型身份；改变真实地址属于新运行配置，不用于覆盖旧计划。
+
 五组名称统一为 A、B、C、pre-D、D。唯一生产配置 `config.toml`：RRF20、两路各50；A 最终选择10个入口，B 最多选择20个原始入口，C 保留 B 的原始入口后增加最多5个摘要入口。B/C六阶段25k/8图，受控原页最后最多4k，不预留5k跨小节额度。`config.offline.toml`只用于虚构测试。
 
 容量来自 `config/gateway-capacity.json` 和原响应证明：131072上下文，16384输出预留，文本/图像代理计数乘1.2；不是准确计费。原文及索引只读复用，不因代码整理重建。
+
+容量文件中的地址是历史证明的绑定对象，不是环境变量的备用连接地址。使用另一网关时，须另行准备与实际地址、模型匹配的容量文件，并设置 `query.capacity_evidence_path`；不要修改原证明来冒充新网关的实测能力。当前检查会拒绝绑定不符的证明，不会自动发起容量探针。
+
+## 输入准备与适用范围
+
+| 使用场景 | 所需输入 | 可用入口 |
+|---|---|---|
+| 查看代码、离线验证 | Python 3.11、锁定依赖 | `financial_rag.cli --help`、pytest；无需真实API和`.local`历史材料 |
+| 处理自己的文档 | 原始PDF、文档清单、对应清洗决策与profiles | 清洗技能、`financial_rag.cleaning`、`financial_rag.final_outline` |
+| 新建检索实验 | 已验收事实库、三套索引与向量、原题及标签、容量证明 | `chunk`/`enrich`/`embed`、`experiment_setup.py` |
+| 复核当前历史结果 | 原source、cohort、运行库，以及D/pre-D独立复用包 | 既有plan和`experiment_report.py`；不重新评分 |
+
+自己的文档处理顺序是：准备文档清单与原始解析 → 按清洗技能构建候选、人工审阅标题与来源 → 验收并发布事实库 → flat/structured分块与向量化 → 摘要与enriched索引 → 准备题集 → 创建独立实验。新文档不能直接套用六份财报的profiles。当前CLI面向清单/工作区，尚无任意PDF路径的一键导入；`download`针对配置中的固定公开数据集，不是通用PDF导入命令。各入口参数可通过以下命令查看，这些帮助命令不创建实验或调用API：
+
+```powershell
+.\.venv\Scripts\python.exe -B -m financial_rag.cli --help
+.\.venv\Scripts\python.exe -B -m financial_rag.cleaning --help
+.\.venv\Scripts\python.exe -B -m financial_rag.final_outline --help
+.\.venv\Scripts\python.exe -B tools/build_contract_index.py --help
+```
+
+正式准备器不是原文下载或清洗器。默认查找以下本地材料，缺少时会提示路径与下一步：
+
+- `query.source_work_dir/experiment.sqlite`：可读事实库及完整的flat/structured/enriched索引、对应embedding；PDF和原图路径也须有效。
+- `--cohort`：`queries.jsonl`、`labels.jsonl`、`manifest.json`，包含有序题号和源数据集身份；原标签不变。固定历史296题的派生清单不随Git发布，也不由准备器自动猜测生成。
+- 预实验额外需要 `--selection`：显式固定题号清单；全量使用整个cohort。
+- 仅合并历史D/pre-D时需要 `--reuse-material`：原记录、原评分、快照与来源清单；没有复用包可以省略该参数，只运行新组别，不能填入历史分数代替缺失记录。
+
+题量、文档量和页数由配置及清单核对。更换文档或问题范围须显式准备匹配配置，不混入当前历史运行。通用上游命令仍保留，但本轮固定296题的清洗决策及历史投入无法仅凭代码仓库重建。复核材料由持有者另行交付，当前仓库不承诺自动下载历史库。
+
+## 创建新计划
+
+以下命令要求前述材料已就绪。`--check`只进行本地读取检查，不等于验证API连通性。
 
 ```powershell
 .\.venv\Scripts\python.exe -B -X utf8 tools/experiment_setup.py --check --scope full

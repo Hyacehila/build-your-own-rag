@@ -247,7 +247,29 @@ def load_config(path: Path | None) -> Config:
 
     base = path.resolve().parent if path else Path.cwd()
     load_dotenv(base / ".env", override=False)
-    config = Config.model_validate(tomllib.loads(path.read_text(encoding="utf-8")) if path else {})
+    settings = tomllib.loads(path.read_text(encoding="utf-8")) if path else {}
+    # Resolve only explicitly opted-in roles. Historical plans contain literal URLs
+    # and must not change identity when the current shell or .env changes.
+    for name, role in settings.get("models", {}).items():
+        if not isinstance(role, dict) or "base_url_env" not in role:
+            continue
+        variable = role.pop("base_url_env")
+        if not isinstance(variable, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", variable):
+            raise RagError(f"models.{name}.base_url_env must name an environment variable")
+        if "base_url" in role:
+            raise RagError(f"models.{name}: choose base_url or base_url_env, not both")
+        value = os.environ.get(variable, "").strip()
+        if not value:
+            raise RagError(f"Set {variable} in the environment or {base / '.env'} "
+                           f"to the gateway API URL for models.{name} (including /v1)")
+        # Validate without echoing potentially credential-bearing input in errors.
+        try:
+            Role(base_url=value)
+        except ValueError:
+            raise RagError(f"{variable} must be an HTTP(S) API URL without credentials, "
+                           "query parameters or fragments") from None
+        role["base_url"] = value
+    config = Config.model_validate(settings)
     config.work_dir = (base / config.work_dir).resolve()
     if config.query.source_work_dir:
         config.query.source_work_dir = (base / config.query.source_work_dir).resolve()

@@ -6,6 +6,24 @@
 
 项目不进行文件、产物或源码哈希校验；保留结构、来源关系、题目范围、成功记录保护及 SQLite/WAL 检查。内容 ID、缓存键及去重键不变。最终报告见 `.local/current-delivery.json`。
 
+## 首次使用
+
+本仓库交付代码、配置、测试和清洗 profiles。`.local` 中的原文库、题集、运行记录与历史报告不随 Git 提供；上面的成绩是已完成实验的记录，克隆仓库不会自动获得其复核材料。
+
+在本目录安装锁定环境并运行离线检查：
+
+```powershell
+uv sync --locked --extra ocr
+uv run --locked --offline python -B -m financial_rag.cli --help
+uv run --locked --offline python -B -m pytest tests/test_current_configuration.py tests/test_portable_configuration.py -q -p no:cacheprovider
+```
+
+首次安装需要依赖下载；上面的检查不下载 Docling 模型，也不调用提供商 API。完整离线套件见 [运行说明](OPERATIONS.md#离线测试)。
+
+需要真实模型时，将 `.env.example` 复制为本机 `.env`（已有文件不要覆盖），填写 `FINANCIAL_RAG_BASE_URL`、`NEW_API_KEY` 和 `DASHSCOPE_API_KEY`。网关地址包含 API 前缀，例如 `https://your-gateway.example/v1`。模型名称与实验参数仍由 `config.toml` 管理。
+
+使用自己的文档需要先完成事实清洗和建库；复核历史实验需要另行取得匹配的原文、题集、运行库及复用材料。两种路线的输入要求见 [运行说明](OPERATIONS.md#输入准备与适用范围)，不能将通用文档处理能力理解为一条命令即可复现本次历史成绩。
+
 |入口/目录|职责|
 |---|---|
 |`src/financial_rag/experiments/{a,b,c,pre_d,d}.py`|五个可独立运行的方案编排，每个支持 `--plan`|

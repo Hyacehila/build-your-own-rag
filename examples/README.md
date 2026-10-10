@@ -10,9 +10,9 @@
 
 - [结构化文档事实层](structured-document-facts/README.md)：从原创 Markdown 转成 DoclingDocument，保留结构并演示版本绑定的节点回读。
 
-## 开发中
+## 金融文档实验
 
-- [金融长文档 RAG 实验](financial-document-rag/README.md)：当前 v2 已发布事实层与真实 A/B 检索层；C/D 通过虚构小样链路检查，真实财报的完整 C/D 和正式实验尚待完成。
+- [金融长文档 RAG 实验](financial-document-rag/README.md)：已完成296题的A、B、C、pre-D、D五组汇总。A/B/C为新批次，pre-D/D原样复用历史结果；代码提供独立组别入口、统一评分报告和离线测试。原文、索引与运行数据库不随Git提交，首次使用与材料要求见项目运行说明。
 
 ## 组织方式
 

@@ -66,6 +66,25 @@ def new_plan(inputs, name='fresh', arms=None):
     return setup.prepare(config, cohort, selection, setup.PROJECT / '.local/experiments' / name, name, arms=arms)
 
 
+def test_prepared_plan_freezes_environment_route(prepared_inputs, monkeypatch):
+    from financial_rag.config import load_config
+    setup, _, _, fake, path, _, _ = prepared_inputs
+    original = load_config(path).portable_settings()
+    text = path.read_text(encoding='utf-8')
+    text = text.replace('base_url = ' + json.dumps(fake.url), 'base_url_env = "TEST_PLAN_GATEWAY"')
+    path.write_text(text, encoding='utf-8')
+    monkeypatch.setenv('TEST_PLAN_GATEWAY', fake.url)
+    request_count = len(fake.requests)
+    plan_path = new_plan(prepared_inputs)
+    plan = read_json(plan_path)
+    frozen = Path(plan['config'])
+    assert 'base_url_env' not in frozen.read_text(encoding='utf-8')
+    monkeypatch.setenv('TEST_PLAN_GATEWAY', 'https://different.example/v1')
+    assert load_config(frozen).portable_settings() == original
+    assert setup.check_plan(plan_path)['plan_ready']
+    assert len(fake.requests) == request_count
+
+
 def test_preparation_preserves_inputs_and_seeds_no_answers_or_requests(prepared_inputs):
     setup, _, source, fake, config, cohort, selection = prepared_inputs
     before = (source.root / 'experiment.sqlite').read_bytes()

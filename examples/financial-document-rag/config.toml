@@ -72,7 +72,7 @@ dimensions = 1024
 encoding_format = "float"
 
 [models.chat]
-base_url = "http://100.84.208.112:8121/v1"
+base_url_env = "FINANCIAL_RAG_BASE_URL"
 model = "deepseek-v4.1-flash"
 api_key_env = "NEW_API_KEY"
 timeout_seconds = 180
@@ -89,7 +89,7 @@ max_tokens = 16384
 type = "enabled"
 
 [models.vision]
-base_url = "http://100.84.208.112:8121/v1"
+base_url_env = "FINANCIAL_RAG_BASE_URL"
 model = "deepseek-v4.1-flash"
 api_key_env = "NEW_API_KEY"
 timeout_seconds = 180
@@ -105,7 +105,7 @@ max_tokens = 8192
 type = "enabled"
 
 [models.judge]
-base_url = "http://100.84.208.112:8121/v1"
+base_url_env = "FINANCIAL_RAG_BASE_URL"
 model = "deepseek-v4.1-flash"
 api_key_env = "NEW_API_KEY"
 timeout_seconds = 180
