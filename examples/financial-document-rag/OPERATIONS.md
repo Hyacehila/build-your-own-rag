@@ -1,55 +1,65 @@
-# 当前 v2 操作手册
+# 运行、评分与交付
 
-[项目首页](README.md) · [设计](DESIGN.md) · [验收](VALIDATION.md)
+所有命令在项目根目录执行，使用 `.venv/Scripts/python.exe -B -X utf8`。环境采用 Python 3.11、`uv.lock`；本机保留 OCR 可选依赖。环境检查：`uv sync --locked --check --offline --extra ocr`；安装使用 `uv sync --locked --extra ocr --link-mode copy`。
 
-以下命令在本项目目录执行。先安装 Python 3.11、`uv`，运行 `uv sync --locked`；版本以 `.python-version`、`pyproject.toml` 和 `uv.lock` 为准。工作目录由[config.toml](config.toml)定义；需要隔离恢复时复制它，仅修改 `work_dir`。`.env.example` 列出可选密钥名，`.env` 被 Git 忽略。原始六份 PDF 不在 Git 中，恢复时 `--pdf-dir` 应直接指向经快照校验的 PDF 目录。发布 ID、校验值和阶段结果统一查[验收记录](VALIDATION.md)。异地全量实验的交付清单、前置条件和 AI 启动提示词见[实验交接盘点](EXPERIMENT_HANDOFF.md)。
+## 配置与准备
 
-## 1. 无 API：查看、恢复与核查
+五组名称统一为 A、B、C、pre-D、D。唯一生产配置 `config.toml`：RRF20、两路各50；A 最终选择10个入口，B 最多选择20个原始入口，C 保留 B 的原始入口后增加最多5个摘要入口。B/C六阶段25k/8图，受控原页最后最多4k，不预留5k跨小节额度。`config.offline.toml`只用于虚构测试。
 
-已有工作库时，运行 `uv run python -m financial_rag.retrieval_release check` 检查当前 A/B；它用已缓存向量做检索冒烟，不产生新模型请求。需要从交接物恢复到新工作目录时：
-
-```powershell
-Copy-Item config.toml config.restore.toml
-# 在 config.restore.toml 中把 work_dir 改为全新的目录。
-uv run python -m financial_rag.cleaning restore --config config.restore.toml --database handoff/finance-facts-v2.sqlite --output .local/facts-v2-restored --pdf-dir D:/verified-pdfs
-uv run python -m financial_rag.cleaning check --config config.restore.toml --output .local/facts-v2-restored
-uv run python -m financial_rag.retrieval_release prepare --config config.restore.toml --database handoff/finance-retrieval-v2.sqlite --pdf-dir D:/verified-pdfs
-uv run python -m financial_rag.retrieval_release check --config config.restore.toml
-```
-
-事实与检索快照用途不同，应分别验证；`prepare` 会核对来源和已有切片/向量，不重新调用神经解析或嵌入。`cleaning restore` 的 `--output` 与检索 `work_dir` 也应分开。已发布交接文件仅为两个 SQLite、两个检索验收 JSON 和 LFS 规则。
-
-若要在 Docling Studio 看整理后的文档，先拥有可回读的事实目录及 PDF，然后执行：
+容量来自 `config/gateway-capacity.json` 和原响应证明：131072上下文，16384输出预留，文本/图像代理计数乘1.2；不是准确计费。原文及索引只读复用，不因代码整理重建。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/docling-studio/Start-DoclingStudio.ps1 -PrepareOnly -FactsRoot .local/facts-v2-release -WorkspaceRoot .local/docling-studio/workspace-v2
-powershell -ExecutionPolicy Bypass -File tools/docling-studio/Start-DoclingStudio.ps1 -FactsRoot .local/facts-v2-release -WorkspaceRoot .local/docling-studio/workspace-v2
+.\.venv\Scripts\python.exe -B -X utf8 tools/experiment_setup.py --check --scope full
+# 仅在明确取得本次全量授权后使用 --full-run-authorized。
+.\.venv\Scripts\python.exe -B -X utf8 tools/experiment_setup.py --output .local/experiments/NEW-RUN --run-id NEW-RUN --scope full --arms A B C --full-run-authorized --reuse-material .local/reused/d-full296-20261008
+.\.venv\Scripts\python.exe -B -X utf8 tools/contract_experiment.py --plan .local/experiments/NEW-RUN/plan.json --check
 ```
 
-第二条启动本地界面，脚本输出地址。导入的是查看副本，不会改变事实发布。首次准备可能下载锁定的 Studio 源码与依赖；这不是付费模型调用。若查看新恢复的事实，把 `-FactsRoot` 指向对应恢复目录。
+准备器创建独立 runtime：零旧答案、零 judge 缓存、零 API 账本；可复用源库身份匹配的 embedding。计划绑定配置、模型、容量、原题/标签、源库、索引和API起始边界。正式复用材料以 `plan.reuse_material` 的路径和来源批次 绑定，复用记录保留原 run_id。任何修改应在启动前完成，运行中不改冻结代码或配置。
 
-## 2. 当前 A/B：从 v2 事实构建
-
-已验收事实库和原 PDF 就绪后，可在独立 `work_dir` 从头建立 A/B。嵌入命令可能调用付费服务；先用 `estimate-embedding` 核对规模。
+## 串行入口与五个独立入口
 
 ```powershell
-uv run python -m financial_rag.retrieval_release prepare --database handoff/finance-facts-v2.sqlite --pdf-dir D:/verified-pdfs
-uv run finance-rag parse --parser flat
-uv run finance-rag chunk --index flat
-uv run finance-rag chunk --index structured
-uv run python -m financial_rag.retrieval_release check --without-vectors
-uv run finance-rag estimate-embedding
-uv run finance-rag embed --index flat
-uv run finance-rag embed --index structured
-uv run python -m financial_rag.retrieval_release check
+.\.venv\Scripts\python.exe -B -X utf8 tools/contract_experiment.py --plan PLAN.json
+.\.venv\Scripts\python.exe -B -X utf8 tools/contract_experiment.py --plan PLAN.json --status
+.\.venv\Scripts\python.exe -B -X utf8 -m financial_rag.experiments.a --plan PLAN.json
+.\.venv\Scripts\python.exe -B -X utf8 -m financial_rag.experiments.b --plan PLAN.json
+.\.venv\Scripts\python.exe -B -X utf8 -m financial_rag.experiments.c --plan PLAN.json
+.\.venv\Scripts\python.exe -B -X utf8 -m financial_rag.experiments.d --plan PLAN.json
+.\.venv\Scripts\python.exe -B -X utf8 -m financial_rag.experiments.pre_d --plan PLAN.json --snapshot-plan EXISTING-D-PLAN.json
 ```
 
-仅在检查通过、目标路径不存在时才导出：`uv run python -m financial_rag.retrieval_release export --database handoff/finance-retrieval-v2.sqlite`。事实候选完成审阅后用 `uv run python -m financial_rag.cleaning check` 与 `export`；此发布路径的具体审阅要求在[Skill 项目适配](.agents/skills/clean-financial-documents/references/project-adapter.md)。如需从原始工作库运行 `cleaning prepare`，必须显式给出 `--source-work-dir`，不能把当前检索工作库误当原始输入。
+独立入口只执行自己的组别，含该组失败补跑，不执行其他组或评分；组别必须在冻结 plan 中。串行入口复用同一执行器，已成功的独立执行记录不重生成。pre-D 必须显式指定包含完整首次快照的 D 运行（`--snapshot-plan`），或通过 `--snapshot-material` 指定保留的复用包，逐题核对源库身份、题文、索引身份与快照结构；缺失在任何 API 请求前停止，不隐式启动 D。本次 ABC 正式计划不允许 D/pre-D 入口启动。
 
-## 3. 有限 API 小样
+## 共同评分与报告
 
-先复制 `.env.example` 为 `.env` 并填写自己的 `DASHSCOPE_API_KEY`、`DEEPSEEK_API_KEY`。运行 `uv run finance-rag doctor` 做本地契约检查；`doctor --live` 会调用外部服务，须先在专用小样配置中设置 `validation.ledger`，默认共享配置不满足这一条件。`uv run --locked python tools/live_preflight.py` 对虚构夹具各跑 A/B/C/D 一题，对当前真实 v2 A/B 各跑一题；脚本的 DeepSeek 请求上限为 20，并在独立账本中记录尝试。该脚本固定读取项目 `config.toml`，不接受 `--config`；它不是全量启动器。再次运行相同 run ID 只适合续跑相同输入；新目的使用新的 `--run-id` 和 `--batch`。它不做答案质量评分。
+```powershell
+.\.venv\Scripts\python.exe -B -X utf8 tools/experiment_score.py --plan PLAN.json
+.\.venv\Scripts\python.exe -B -X utf8 tools/experiment_report.py --plan PLAN.json
+```
 
-## 4. 后续正式实验
+串行驱动自动调用共同评分、来源核查及汇总。评分只读取新运行库的冻结组别，复用库不参与 judge。报告重建不调用模型、不修改分数。新ABC先通过 `review/` 核查，再与复用材料生成 `delivery/REPORT.zh-CN.html`、逐题CSV及文件清单；只有这时切换 `.local/current-delivery.json`。
 
-先为真实六份财报完成 C 的图表增强、切片与向量，再让 D 复用 C。绑定经验证的英文问题、页级标注和版本后，才能安排 309 题四组运行、评分和报告。`finance-rag enrich`、`chunk --index enriched`、`embed --index enriched`、`run`、`evaluate`、`report` 是对应代码入口；这些步骤尚未构成已完成的 v2 发布流程，也会产生外部 API 用量。
+`finance-rag run/evaluate/report`仍是公共执行/评分/汇总实现的模块级入口；正式交付使用冻结计划入口，避免缺少冻结和来源核查。清洗、enrich、embed 等上游CLI继续保留。
+
+## 失败与恢复
+
+首次全部新答案执行结束后，仅无有效答案者统一补跑最多三轮。已有效答案即使判错也不重新生成；四次尝试耗尽按错，固定分母。每轮保留成功记录状态检查点，全部尝试及物理请求在同一事务运行库保存，不再复制整库分轮备份。
+
+中断先核实真实 PID、父子、创建时间、锁与提交进度，保全现场后恢复同一计划。正常只读 SQLite 检查包含已提交 WAL；不能删 WAL 绕过检查。只有确认进程已退出才处理残锁。Windows任务 Ready 不等于 Python 已退出；一次性任务无 Trigger、无自动重启、无限执行时限。持续鉴权/余额/无成功进展的网关故障停止并报告；少量可恢复429不反复启停。
+
+费用按实际请求边界统计，judge以任务键关联；缓存不冒充新请求，未知用量不当零。原暂停在途请求的未知用量保留说明，实际货币账单不可见不虚构价格。
+
+## 上游能力
+
+事实清洗遵循 AGENTS.md 和 `.agents/skills/clean-financial-documents/SKILL.md`。`tools/build_contract_index.py`提供建库入口。当前 cleaning-v2 profiles 仅适用于对应文档版本；新文档先完成解析和事实验收，再进行分块、摘要与建库。
+
+## 离线测试
+
+```powershell
+.\.venv\Scripts\python.exe -B -X utf8 -m pytest -m 'not docling' -q --basetemp .local/audits/local-tests -p no:cacheprovider
+```
+
+虚构材料与本地协议替身不调用外部模型。真实 Docling 权重集成测试独立标记，首次运行可能下载权重。测试覆盖组别隔离、pre-D 快照门槛、成功记录保护、SQLite/WAL 恢复、补跑耗尽、评分续评和复用记录不再评分。
+
+项目不执行文件、产物或源码哈希校验，不生成校验清单；保留结构、类型、来源关系、文件可读性和业务不变量检查。内容 ID、缓存键与去重键仍可使用哈希。报告重建只读原始记录，不修改答案、分数或标签。

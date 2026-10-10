@@ -13,7 +13,6 @@
 | 外部格式转换及资产修复 | mineru_layout_bridge.py、table_repairs.py、asset_roles.py | 固定支持的 layout schema；不是任意 MinerU 版本的通用适配器 |
 | 候选 DoclingDocument 构建 | cleaning.py | 复用原始/云端缓存，保留替换和拒绝记录 |
 | 最终标题包与验收 | final_outline.py | 根据最终快照审阅并签收，不由脚本代替 Agent 阅读 |
-| 可选查看 | tools/docling-studio | 独立查看副本，不能以显示成功代替验收 |
 
 使用项目 Python 3.11、uv 和锁文件。当前已验证 Docling 依赖包括 docling-slim 2.120.1、docling-core 2.91.0、docling-parse 7.13.0、docling-ibm-models 3.14.0；以运行记录为准。数字财报曾用 CPU、accurate 表格及关闭 OCR，不照搬给扫描材料。本地 OCR 入口目前写死英语，其他语言先适配，不能只改语言说明就宣称支持。
 
@@ -31,9 +30,9 @@ MinerU 当前封装采用精准解析 vlm、英语、文件 is_ocr=false，表�
 
 ## 输入、决策和缓存
 
-新文档先补齐唯一 doc_id、PDF 哈希/页数、语言、原始快照及逐页来源清单。现有 prepare 从 Store 的 documents/rawparse 指针读取；build 从 workspace 的 sources.json、diagnostics、profiles 和可选 cloud 候选读取。sources.json 可含本机绝对路径，不能当通用便携交付清单。
+新文档先补齐唯一 doc_id、PDF 版本标识/页数、语言、原始快照及逐页来源清单。现有 prepare 从 Store 的 documents/rawparse 指针读取；build 从 workspace 的 sources.json、diagnostics、profiles 和可选 cloud 候选读取。sources.json 可含本机绝对路径，不能当通用便携交付清单。
 
-Profile 绑定 doc_id、pdf_sha256、raw_snapshot_sha256。excluded_pages、boundaries、heading_levels、reviewed_pages 为当前构建所需，保留标题须显式分类。原始 ref 经目录排除映射后执行，可选操作包括：
+Profile 通过 doc_id 关联文档；pdf_sha256、raw_snapshot_sha256 保留为历史来源字段，不再进行文件哈希比较。excluded_pages、boundaries、heading_levels、reviewed_pages 为当前构建所需，保留标题须显式分类。原始 ref 经目录排除映射后执行，可选操作包括：
 
 - demote、furniture、navigation_refs：降级伪标题，移出重复栏头或混合页导航。
 - promote：把已有完整叶文本提升为标题，使用同页 before_ref 和证据；不能编写新标题。
@@ -43,13 +42,13 @@ Profile 绑定 doc_id、pdf_sha256、raw_snapshot_sha256。excluded_pages、boun
 
 每条决定记录原页证据、前后关系和理由。当前执行器只对部分操作强制证据字段，Skill 要求比现有自动校验更完整；不能声称脚本已验证每条语义决定。
 
-当前已验收事实与最终标题回执分别保存在独立的本机工作目录；不原地重建。旧工作目录中的原始/云端材料只有在来源哈希和配置核对通过时才可作为新候选输入，目录名称本身不构成版本依据。为新候选指定独立 output 和 profile。
+当前已验收事实与最终标题回执分别保存在独立的本机工作目录；不原地重建。旧工作目录中的原始/云端材料只有在文档版本标识和配置核对通过时才可作为新候选输入，目录名称本身不构成版本依据。为新候选指定独立 output 和 profile。
 
 ## 当前回执适配
 
-final_outline 使用 contract、doc_id、parse_id、snapshot_sha256、outline_sha256 绑定候选；reviewer 与 final_tree_reviewed 标记真实审阅。reviewed_heading_refs 覆盖最终标题各一次，expected_relations 记录有原页证据的父节点或父标题关系；contents_pages_viewed、representative_pages_viewed、suspicious_pages_viewed 记录实际查看页，无目录时提供 no_contents_reason。
+final_outline 核对 contract、doc_id、parse_id，并检查实际标题集合和关系；snapshot_sha256、outline_sha256 保留为历史来源字段，不作为验收门槛。reviewer 与 final_tree_reviewed 标记真实审阅。reviewed_heading_refs 覆盖最终标题各一次，expected_relations 记录有原页证据的父节点或父标题关系；contents_pages_viewed、representative_pages_viewed、suspicious_pages_viewed 记录实际查看页，无目录时提供 no_contents_reason。
 
-confirmed_wrong_parent_remaining 在通过时为空；uncertain_exceptions 明确未决原因。包哈希、分支复用依据和成本可另存，但现有校验器未全部强制检查。默认标题包 100 项，可按长度调整。
+confirmed_wrong_parent_remaining 在通过时为空；uncertain_exceptions 明确未决原因。包文件清单、分支复用依据和成本可另存，但现有校验器未全部强制检查。默认标题包 100 项，可按长度调整。
 
 当前校验器要求代表页及至少一条预期关系，零标题材料需实现空树验收适配。通用 Skill 允许真实平坦文档；不能为满足此处程序限制造标题。Agent 阅读边界和疑点重试预算也是执行规范，尚非代码强制限流。
 

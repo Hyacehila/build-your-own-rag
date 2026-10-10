@@ -1,28 +1,26 @@
-# 金融长文档 RAG 实验（开发中）
+# 金融文档 RAG
 
-[示例目录](../README.md) · [设计](DESIGN.md) · [操作](OPERATIONS.md) · [当前验收](VALIDATION.md) · [实验交接](EXPERIMENT_HANDOFF.md) · [代码导航](DEVELOPMENT.md)
+五个实验组统一命名为 A、B、C、pre-D、D。A 使用平面原文检索，B 使用结构化原文，C 在 B 的原始入口上补充摘要召回，pre-D 使用首次未扩展快照，D 继续扩展阅读。读取数量与预算作为配置参数说明，不作为组名后缀。唯一生产配置为 `config.toml`；`config.offline.toml`仅用于虚构材料测试。
 
-本示例以六份 ViDoRe V3 Finance 财报为材料，比较从 PDF 原生文字到结构化事实、图表增强和可读原文的 Agent 检索。当前 **v2 事实发布**及真实 A/B 检索层可离线恢复、检查。状态数字只在[当前验收](VALIDATION.md)维护。
+当前全量结果已完成：A 190/296（64.19%）、B 210/296（70.95%）、C 212/296（71.62%）；pre-D 195/296、D 232/296 为原批次复用。888 条新答案与 592 条复用记录合计 1,480 条，未重新生成或评分 D/pre-D。
 
-## 四组实验
+项目不进行文件、产物或源码哈希校验；保留结构、来源关系、题目范围、成功记录保护及 SQLite/WAL 检查。内容 ID、缓存键及去重键不变。最终报告见 `.local/current-delivery.json`。
 
-| 组别 | 输入与检索 | 答案路径 |
-|---|---|---|
-| A | PDF 原生文字平面切片、混合检索 | 直接用命中原始切片回答 |
-| B | 已审阅结构切片、标题与来源 | 命中片段优先，随后扩展章节上下文与原页图 |
-| C | 保留 B 原片段，额外加入图片描述、整表摘要 | 来源分组，回读原始片段与图像 |
-| D | 复用 C 索引 | 先读原文，再按证据缺口主动查询和阅读 |
+|入口/目录|职责|
+|---|---|
+|`src/financial_rag/experiments/{a,b,c,pre_d,d}.py`|五个可独立运行的方案编排，每个支持 `--plan`|
+|`runner.py` 与公共原文/API/存储模块|共享执行、请求审计、失败恢复；不复制五套基础实现|
+|`tools/experiment_setup.py`|准备新计划、独立运行库和源码副本|
+|`tools/contract_experiment.py`|按计划串行执行、统一补跑、评分与审计|
+|`tools/experiment_score.py`|共同评分，仅评分本计划新生成的组别|
+|`tools/experiment_report.py`|无模型调用的来源审计与报告重建|
+|`tools/experiment_reuse.py`|原始 D/pre-D 材料提取及结构核查|
+|`.local/reused/d-full296-20261008`|592 条复用记录、原评分、快照、关联请求及原版本凭据|
+|`.local/contract-v1/source`、`cohort-296`|只读原文/图像/索引与固定题集原标签|
+|`.local/experiments`|本次独立执行材料、检查点、结果与报告|
 
-## 当前进度
+运行状态见 `.local/contract-v1/active.json`；经核查的最终交付指针为 `.local/current-delivery.json`。准备、运行和未完成报告都不会替代最终指针。
 
-2026-09-29 已按外部全量结果完成下一轮代码修复，参数、重试和本地诊断证据见[修复报告](REPAIR_REPORT_20260929.md)。下列 v2 发布记录保留作为历史交接范围；外部完整 C/D 缓存尚未回传，本地新实现没有完成新一轮 309×4 实验。
+方案与边界见 [架构契约](DESIGN.md)，环境、执行、评分、报告及离线测试见 [运行说明](OPERATIONS.md)。
 
-- **已完成：**六份财报的 v2 事实发布、标题树审阅与来源链；真实财报的 A/B 切片、向量、混合检索及异地恢复；虚构小样的 A/B/C/D 与真实 v2 A/B 的有限 API 链路预实验。
-- **进行中：**针对已知解析缺陷的定点候选复核。Wells Fargo 物理第 335 页的 MinerU 改善只作为候选，未并入 v2 发布。
-- **未完成：**真实六份财报的完整 C/D 增强索引、正式题集与页级标注绑定、309 题正式四组实验和答案质量评测。现有链路通过不代表效果已验证。
-
-## 阅读顺序
-
-先读[设计](DESIGN.md)理解事实版本与四组差异，再看[当前验收](VALIDATION.md)确认哪些结论已有证据。需要恢复快照、查看 Docling Studio 或继续实验时用[操作手册](OPERATIONS.md)。事实清洗的内部执行规范在[项目 Skill](.agents/skills/clean-financial-documents/SKILL.md)。
-
-正式实验的共享配置是[config.toml](config.toml)；[config.offline.toml](config.offline.toml) 仅用于虚构夹具的本地检查。密钥只放环境变量或被忽略的 `.env`。原始 PDF 和工作缓存不随仓库发布。两份不同用途的 v2 SQLite 用 Git LFS 交接。
+上游 PDF 清洗、Docling 解析、事实投影、分块、摘要和建库使用 `.agents/` 中的清洗技能及当前 profiles。原文、运行材料和密钥不在 Git 中；密钥只由环境或忽略的 `.env` 加载，不打包、不公开上传。
