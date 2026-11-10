@@ -34,7 +34,7 @@ dist/
 Thumbs.db
 *.log
 
-# Generated RAG artifacts. Published datasets belong under datasets/<slug>/data/.
+# Generated RAG artifacts.
 .local/
 .chroma/
 .lancedb/

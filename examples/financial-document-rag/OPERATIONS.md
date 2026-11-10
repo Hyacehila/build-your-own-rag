@@ -27,7 +27,7 @@
 | 新建检索实验 | 已验收事实库、三套索引与向量、原题及标签、容量证明 | `chunk`/`enrich`/`embed`、`experiment_setup.py` |
 | 复核当前历史结果 | 原source、cohort、运行库，以及D/pre-D独立复用包 | 既有plan和`experiment_report.py`；不重新评分 |
 
-自己的文档处理顺序是：准备文档清单与原始解析 → 按清洗技能构建候选、人工审阅标题与来源 → 验收并发布事实库 → flat/structured分块与向量化 → 摘要与enriched索引 → 准备题集 → 创建独立实验。新文档不能直接套用六份财报的profiles。当前CLI面向清单/工作区，尚无任意PDF路径的一键导入；`download`针对配置中的固定公开数据集，不是通用PDF导入命令。各入口参数可通过以下命令查看，这些帮助命令不创建实验或调用API：
+自己的文档处理顺序是：准备文档清单与原始解析 → 按清洗技能构建候选、人工审阅标题与来源 → 验收并发布事实库 → flat/structured分块与向量化 → 摘要与enriched索引 → 准备题集 → 创建独立实验。新文档不能直接套用六份财报的profiles。当前CLI面向清单/工作区，尚无任意PDF路径的一键导入；`download`针对配置中的 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en/tree/main) 数据集，不是通用PDF导入命令。各入口参数可通过以下命令查看，这些帮助命令不创建实验或调用API：
 
 ```powershell
 .\.venv\Scripts\python.exe -B -m financial_rag.cli --help

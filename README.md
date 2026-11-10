@@ -10,11 +10,13 @@ Build Your Own RAG 是一个包含个人偏好的 RAG 教程。它面向有编�
 
 这是一个以项目和问题为导向的教程，技术服务于问题本身，每项技术选择都会放到具体场景中解释，必要时也会对比其他方案。我的个人习惯仍然会影响部分选型，读者可以参考这些选择，再根据自己的需求作出判断。
 
-本教程不会逐行解释代码，也不会穷举运行步骤和可能遇到的报错。我认为，读者已经可以借助编程智能体（Coding Agent）处理这些实现细节。我会写清楚要做什么、解释原理，并提供[示例代码](examples/README.md)和[数据](datasets/README.md)供参考。读者需要自己动手实现和验证，理解每一步的作用。
+本教程不会逐行解释代码，也不会穷举运行步骤和可能遇到的报错。我认为，读者已经可以借助编程智能体（Coding Agent）处理这些实现细节。我会写清楚要做什么、解释原理，并提供[示例代码](examples/README.md)和相关数据集的获取方式供参考。读者需要自己动手实现和验证，理解每一步的作用。
 
 这个项目会尽量少依赖现成的 RAG 框架或系统，例如 [LangChain](https://github.com/langchain-ai/langchain)、[LlamaIndex](https://github.com/run-llama/llama_index)、[RAGFlow](https://github.com/infiniflow/ragflow)、[LightRAG](https://github.com/HKUDS/LightRAG) 和 [RAG-Anything](https://github.com/HKUDS/RAG-Anything)。我也不是要开发一个新的 RAG 框架，而是通过示例展示如何针对具体问题实现各个环节。示例代码主要采用 Python 原生开发，并引入我认为必要的依赖。在我看来，RAG 的基本思路并不复杂，亲手实现各个环节也有助于将来在生产环境中调整和维护系统。有了 Coding Agent，在引入一个可能变化频繁的框架和自己多写一些代码之间，我会更倾向于后者。
 
 教程以实践为主，不会从 RAG 的历史讲起，也不会展开模型训练原理。如果你希望先系统入门，或参考现有代码，可以看看 [All-in-RAG](https://github.com/datawhalechina/all-in-rag) 和 [RAG from Scratch](https://github.com/langchain-ai/rag-from-scratch)。想进一步了解不同的 RAG 技巧，可以看看按专题组织的 [RAG Techniques](https://github.com/NirDiamant/RAG_Techniques)。企业场景还会涉及权限管理、数据源连接等问题，对这些话题感兴趣，可以参考 [Azure Search OpenAI Demo](https://github.com/Azure-Samples/azure-search-openai-demo) 和 [Onyx](https://github.com/onyx-dot-app/onyx)。
+
+如果你想直接使用端到端框架快速搭建 Demo，[RAG-Anything](https://github.com/HKUDS/RAG-Anything) 和 [LightRAG](https://github.com/HKUDS/LightRAG) 都是不错的选择。
 
 **Build your own RAG. Do not just copy it.**
 
@@ -28,8 +30,7 @@ Build Your Own RAG 是一个包含个人偏好的 RAG 教程。它面向有编�
 
 - **[主线教程](#主线教程目录)**：按学习顺序展开，从真实问题出发，讨论从数据清洗到评测的方案与权衡。
 - **[特别加更](#特别加更目录)**：独立讨论某个问题、实验或补充话题，与主线无关。
-- **[成品示例](examples/README.md)**：各章节引用的项目代码参考，便于理解实现，独立说明环境与依赖。
-- **[数据集](datasets/README.md)**：包括开源数据集和作者个人提供或整理的数据，符合分发条件的小型完整数据集随仓库提供。
+- **[成品示例](examples/README.md)**：各章节引用的项目代码参考，便于理解实现，独立说明环境、依赖及所用数据的获取方式。
 
 ## 主线教程目录
 
@@ -49,19 +50,19 @@ Build Your Own RAG 是一个包含个人偏好的 RAG 教程。它面向有编�
 ## 示例与数据
 
 - [成品示例](examples/README.md)：使用[金融长文档 RAG 示例](examples/financial-document-rag/README.md)理解前几章的数据流，[金融教学路线](examples/financial-document-rag/TEACHING.md)提供原创虚构报告、参考对象和本地入口。真实金融实验已完成296题五组汇总，A/B/C为新批次，pre-D/D复用原批次结果；原文库和历史运行材料另行管理。
-- [数据集](datasets/README.md)：尚未发布独立数据集；示例自带原创虚构教学夹具。
+- 涉及数据集的示例今后使用开源数据集，并在示例中提供来源和下载链接；仓库不单独发布数据集。金融示例现有的原创教学夹具暂时保留，后续会移除。
 
 ## 碎碎念
 
-我在刚开始研究 AI Agent 的时候，对 RAG 这项技术就不是很热衷。少样本提示最初是有价值的，但当模型的知识储备更丰富、与人类意图的对齐更充分时，这些提示就可能从引导模型解决问题，变成限制模型发挥能力。我当时认为，未来是 RAG-free 的，我们应该去研究能够解决真实工程问题的结构。
+我在刚开始研究 AI Agent 的时候，对 RAG 这项技术并不热衷。少样本提示最初是有价值的，但当模型的知识储备更丰富、与人类意图的对齐更充分时，这些提示就可能从引导模型解决问题的工具，变成限制模型发挥能力的约束。我当时认为，未来是 RAG-free 的，我们应该去研究真实问题的结构，以及针对问题本身设计出尽可能通用的 Agent 结构。
 
-不过，最近我的想法有了一些变化。在接触到更多真实生产环境中的问题，并与他人交流后，我开始感觉 RAG 本身可能值得单独研究。更进一步讲，LLM Wiki 等项目让我们开始思考如何构建知识系统，而传统 RAG 是知识系统中不可缺少的一环。
+不过，最近我的想法有了一些变化。在接触到更多真实生产环境中的问题并与他人交流后，我的想法发生了一些变化，开始感觉 RAG 本身可能值得单独研究。更进一步讲，LLM Wiki 等项目让我们开始思考如何构建知识系统，而传统 RAG 是知识系统中不可缺少的一环。训练可以让模型获得知识、与人类意图对齐，却无法让它掌握现实世界中繁杂的习惯。因此，如何收集和清洗数据、如何存储知识、如何迭代知识系统，都需要单独处理。我们可能还在做一个 QA Bot，但目标是构建知识系统，让 AI 更好地理解繁杂的现实世界。
 
-训练可以让模型获得知识、与人类意图对齐，却无法让它掌握现实世界中繁杂的习惯。因此，如何收集和清洗数据、如何存储知识、如何迭代系统，都值得单独研究。我们可能还在做一个 QA Bot，但目标是构建知识系统，让 AI 更好地理解繁杂的现实世界。
+这也是整个项目的出发点，我希望能够通过一些 Case 以及对应的文档，从现实世界中存在的问题开始，思考 RAG 系统本身应该如何构建；我们又应该如何充分的利用已有的项目，来更快的做出可用的系统。
 
 ## 参与贡献
 
-欢迎通过 Issue 或 Pull Request 纠错、补充说明，以及贡献示例和数据集。
+欢迎通过 Issue 或 Pull Request 纠错、补充说明、贡献示例，或推荐开源数据集。
 
 开始之前请阅读[贡献指南](CONTRIBUTING.md)和[社区行为准则](CODE_OF_CONDUCT.md)。章节命名、图片组织与导航规则见[教程文件与导航](CONTRIBUTING.md#教程文件与导航)。
 
