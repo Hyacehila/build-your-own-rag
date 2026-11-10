@@ -47,4 +47,4 @@ uv run --locked --offline python -B tools/teaching_example.py
 
 ## 文档解析的练习
 
-这份夹具适合检查表示和回读。需要验证真实解析时，另选一份有权使用的小型 PDF，先看原生文字是否可靠，再对照标题、表格、阅读顺序与原页位置。按[清洗技能](.agents/skills/clean-financial-documents/SKILL.md)准备输入，采用独立工作目录，不套用六份真实财报的清洗 profiles。扫描页、跨页表格和复杂版面需要各自的原页对照，不能用已知布局夹具的成功代替。
+这份夹具适合检查表示和回读。需要验证真实解析时，另选一份有权使用的小型 PDF，先看原生文字是否可靠，再对照标题、表格、阅读顺序与原页位置。按[清洗技能](.agents/skills/clean-financial-documents/SKILL.md)准备输入，采用独立工作目录，不套用六份真实财报的清洗 profiles。扫描页、跨页表格和复杂版面需要各自的原页对照。

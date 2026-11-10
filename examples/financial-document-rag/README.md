@@ -12,11 +12,11 @@
 
 ## 数据集来源
 
-真实金融实验使用 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en/tree/main) 数据集。上游页面提供下载入口并标注 CC BY 4.0，原始财报及相关内容还需遵循各自的使用条件；本例使用的数据源与固定版本见 [config.toml](config.toml)。历史实验的固定题集、清洗决策、运行库和复用材料另行管理，下载上游数据集不等于取得完整的成绩复核材料。
+真实金融实验使用 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en/tree/main) 数据集。上游页面提供下载入口并标注 CC BY 4.0，原始财报及相关内容还需遵循各自的使用条件；本例使用的数据源与固定版本见 [config.toml](config.toml)。
 
 ## 首次使用
 
-本仓库交付代码、配置、测试、清洗 profiles 和原创教学参考材料。`.local` 中的真实原文库、题集、运行记录与历史报告不随 Git 提供；上面的成绩是已完成实验的记录，克隆仓库不会自动获得其复核材料。
+本仓库提供代码、配置、测试、清洗 profiles 和原创教学参考材料。`.local` 中的真实原文库、题集、运行记录与历史报告不随 Git 提供。复核历史成绩还需要固定题集、清洗决策、运行库和复用材料；这些材料另行管理，下载上游数据集无法单独获得完整的复核材料。
 
 在本目录安装锁定环境并运行离线检查：
 
@@ -30,7 +30,7 @@ uv run --locked --offline python -B -m pytest tests/test_current_configuration.p
 
 需要真实模型时，将 `.env.example` 复制为本机 `.env`（已有文件不要覆盖），填写 `FINANCIAL_RAG_BASE_URL`、`NEW_API_KEY` 和 `DASHSCOPE_API_KEY`。网关地址包含 API 前缀，例如 `https://your-gateway.example/v1`。模型名称与实验参数仍由 `config.toml` 管理。
 
-使用自己的文档需要先完成事实清洗和建库；复核历史实验需要另行取得匹配的原文、题集、运行库及复用材料。两种路线的输入要求见 [运行说明](OPERATIONS.md#输入准备与适用范围)，不能将通用文档处理能力理解为一条命令即可复现本次历史成绩。
+使用自己的文档需要先完成事实清洗和建库；本地文档处理与历史实验复核的输入要求见 [运行说明](OPERATIONS.md#输入准备与适用范围)。
 
 |入口/目录|职责|
 |---|---|

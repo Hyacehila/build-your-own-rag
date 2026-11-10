@@ -259,7 +259,7 @@ flowchart LR
 7. 修改 chunk、metadata filter、reranker 或 embedding 策略；
 8. 回到离线指标和人工评测验证。
 
-这里最重要的是第 6 步。可视化只能让你找到“值得读的地方”，不能替你判断原因。真正的诊断还是要回到原文、任务和用户意图。
+这里最重要的是第 6 步：根据可视化找到“值得读的地方”，再结合原文、任务和用户意图判断原因。
 
 ## 嵌入可视化带来的理解变化
 
@@ -277,9 +277,7 @@ flowchart LR
 
 ## 但不要把图当成答案
 
-最后还是要把边界讲清楚：不要把图当成答案。
-
-二维投影不是原始高维空间。可视化里的团块不自动等于真实类别，离群点不自动等于坏数据，混在一起也不自动等于错误。UMAP 的参数、采样方式、归一化、向量模型、metadata 选择，都会影响你看到的图。
+可视化里的团块不自动等于真实类别，离群点不自动等于坏数据，混在一起也不自动等于错误。UMAP 的参数、采样方式、归一化、向量模型、metadata 选择，都会影响你看到的图。
 
 可视化更适合做三件事：
 
@@ -287,13 +285,11 @@ flowchart LR
 - 形成诊断假设；
 - 选择人工抽检样本。
 
-它不适合单独做最终结论。最终仍要看 recall@k、MRR、nDCG、answer correctness、context precision、faithfulness、人工偏好、线上点击、用户反馈和业务成本。中文实践文章里也有类似提醒：比如 [RAG 可观测性](https://jimmysong.io/book/ai-handbook/rag/observability/) 会把检索指标、语义质量、日志和 trace 放在一起讨论，而不是只看二维图。
+评估结果还要看 recall@k、MRR、nDCG、answer correctness、context precision、faithfulness、人工偏好、线上点击、用户反馈和业务成本。中文实践文章里也有类似提醒：比如 [RAG 可观测性](https://jimmysong.io/book/ai-handbook/rag/observability/) 会把检索指标、语义质量、日志和 trace 放在一起讨论，而不是只看二维图。
 
-Embedding Atlas 提供的是一种可观察性。它不会自动让 RAG 变好，也不会替你决定该换模型、换 chunk，还是加 reranker。但它会让 RAG 的一部分失败从黑盒里浮出来：哪些是模型问题，哪些是 chunk 问题，哪些是数据问题，哪些是业务边界没有进入向量空间。
+Embedding Atlas 让我们观察向量空间，也让 RAG 的一部分失败从黑盒里浮出来：哪些是模型问题，哪些是 chunk 问题，哪些是数据问题，哪些是业务边界没有进入向量空间。具体是换模型、换 chunk，还是加 reranker，还要结合这些线索和后续评测来决定。
 
 当我们说“更好的 RAG”时，不应该只想到更大的生成模型、更强的 reranker 或更复杂的 agent。很多时候，更好的 RAG 来自几件更朴素的事：知道自己的语料长什么样，查询落在哪里，错误如何成簇，长尾知识有没有被覆盖。
-
-Embedding 可视化的意义就在这里。它不替系统做决定，但它让我们终于能观察向量空间本身。
 
 ## 参考资料
 
