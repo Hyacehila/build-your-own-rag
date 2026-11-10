@@ -16,7 +16,7 @@ Build Your Own RAG 是一个包含个人偏好的 RAG 教程。它面向有编�
 
 教程以实践为主，不会从 RAG 的历史讲起，也不会展开模型训练原理。如果你希望先系统入门，或参考现有代码，可以看看 [All-in-RAG](https://github.com/datawhalechina/all-in-rag) 和 [RAG from Scratch](https://github.com/langchain-ai/rag-from-scratch)。想进一步了解不同的 RAG 技巧，可以看看按专题组织的 [RAG Techniques](https://github.com/NirDiamant/RAG_Techniques)。企业场景还会涉及权限管理、数据源连接等问题，对这些话题感兴趣，可以参考 [Azure Search OpenAI Demo](https://github.com/Azure-Samples/azure-search-openai-demo) 和 [Onyx](https://github.com/onyx-dot-app/onyx)。
 
-**自己动手构建 RAG，而不只是照搬。**
+**Build your own RAG. Do not just copy it.**
 
 ## 适合谁阅读
 
