@@ -1,7 +1,5 @@
 # ex001 · Embedding Atlas：用可视化理解 RAG 的嵌入空间
 
-简体中文 | 英文译文待补充
-
 [返回总目录](../../README.md#特别加更目录)
 
 作者：Hyacehila · 原文日期：2026-05-29 · [原文链接](https://hyacehila.github.io/blog/2026/05/29/embedding-atlas-rag-embedding-visualization/)

@@ -1,6 +1,6 @@
-# 授权说明 / Licensing
+# 授权说明
 
-[返回项目首页](README.md) · [English summary](#english-summary) · [数据分发规则](datasets/README.md#分发规则)
+[返回项目首页](README.md) · [数据分发规则](datasets/README.md#分发规则)
 
 本仓库按内容类型分别授权。版权署名为 **Build Your Own RAG contributors**；具体贡献者的署名和第三方声明应一并保留。
 
@@ -25,7 +25,7 @@
 
 > 《文章标题》，Build Your Own RAG contributors（及文章列出的作者），原文地址：实际来源地址。采用 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。修改说明：未修改，或说明所做的翻译、节选和改编。
 
-翻译属于改编，提交译文时应注明中文原文及对应版本，并保留署名与许可信息。
+翻译属于改编，复用时应注明原文及对应版本，并保留署名与许可信息。
 
 ## 第三方内容与数据
 
@@ -36,13 +36,3 @@
 ## 贡献的授权
 
 贡献者应拥有提交内容所需的权利。除已明确标注的第三方内容或单独授权的数据集外，提交的原创贡献按上表对应协议发布。本项目不要求贡献者转让版权。
-
-## English summary
-
-Original code, including any original snippets embedded in documentation, is licensed under MIT. Tutorial implementations are kept in [example projects](examples/README.md) rather than embedded in tutorial prose. Original prose, translations, writing templates, and illustrations are licensed under CC BY 4.0, excluding code snippets. The full license texts are linked above.
-
-Third-party materials retain their own licenses. Every dataset, including one created by contributors, must state its own license; the repository's default licenses do not automatically apply to data. Public availability alone does not establish permission to redistribute.
-
-When reusing code, retain the notices required by MIT. When reusing documentation, provide appropriate attribution, link to CC BY 4.0, identify changes, and retain applicable supplied notices. Translations should identify their source and source revision.
-
-Contributors must have the rights needed to submit their work. Original contributions use the corresponding license described here; contributors retain their copyright.

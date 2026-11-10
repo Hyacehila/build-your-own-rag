@@ -1,7 +1,5 @@
 # 005 · 从召回到回答：查询流程与 Agentic RAG
 
-简体中文 | 英文译文待补充
-
 上一章：[Chunk 与增强层：为检索准备资料](004-chunks-and-enrichment.md) · [返回总目录](../../README.md#主线教程目录) · 下一章：[数据库存储与结构化回查](006-databases-and-source-lookup.md)
 
 ## 检索层准备好了，一次查询还要做什么

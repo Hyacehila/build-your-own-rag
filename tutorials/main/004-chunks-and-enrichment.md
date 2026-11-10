@@ -1,7 +1,5 @@
 # 004 · Chunk 与增强层：为检索准备资料
 
-简体中文 | 英文译文待补充
-
 上一章：[OCR 与文档解析：一些选择与取舍](003-ocr-and-parsing.md) · [返回总目录](../../README.md#主线教程目录) · 下一章：[从召回到回答：查询流程与 Agentic RAG](005-retrieval-and-agentic-rag.md)
 
 ## 已有完整文档，为什么还需要 Chunk
