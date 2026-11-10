@@ -70,7 +70,7 @@ def test_legacy_scored_rows_do_not_invent_new_search_metrics():
 def test_tail_rows_survive_small_budget_and_previews_do_not_spend_evidence(local):
     config, store = local
     index = current_index(config, store, "structured")
-    target = next(c for c in store.chunks(index["id"]) if "Test segment 24" in c["text"])
+    target = next(c for c in store.chunks(index["id"]) if "item 24" in c["text"])
     reader = Reader(config, store, index)
     config.query.text_tokens = reader.tokenizer.count(target["text"])
     config.query.read_max_tokens = config.query.text_tokens
@@ -79,7 +79,7 @@ def test_tail_rows_survive_small_budget_and_previews_do_not_spend_evidence(local
     assert reader.text_used == 0
     assert reader.preview_used <= config.query.preview_total_tokens
     reader.read(chunk_id=target["id"], include_images=False)
-    assert any("Test segment 24" in e.get("text", "") for e in reader.evidence.values())
+    assert any("item 24" in e.get("text", "") for e in reader.evidence.values())
     assert reader.text_used <= config.query.text_tokens
     assert all(e["read_scope"] == "original_fragment" for e in reader.evidence.values())
 
@@ -112,11 +112,11 @@ def test_additive_enrichment_preserves_originals_and_never_cites_summary(configu
     summary = next(c for c in copies if c.get("enrichment_id") and c["kind"] == "table")
     from financial_rag.evidence_packet import OriginalCatalog
     reader = Reader(config, store, base)
-    reader.question = "Test segment 24 2024"
+    reader.question = "item 24"
     OriginalCatalog(store, base).assemble(reader, [summary], enriched)
     assert reader.evidence
     assert all(e.get("chunk_id") != summary["id"] for e in reader.evidence.values())
-    assert any("Test segment 24" in e.get("text", "") for e in reader.evidence.values())
+    assert any("item 24" in e.get("text", "") for e in reader.evidence.values())
     node = store.get("nodes", summary["asset_ids"][0])
     key = enrichment_key(config, node)
     from financial_rag.config import Enrichment
@@ -180,7 +180,7 @@ def test_source_grouping_retains_matched_rows_and_a_uses_only_chunks(configured)
     embed_index(config, store, "structured")
     index = current_index(config, store, "structured")
     search = Search(config, store, index, ModelAPI(config, store, "groups"))
-    hits = search.search("Test segment 24 revenue 2024")
+    hits = search.search("item 24")
     assets = [tuple(c["asset_ids"]) for c in hits if c.get("asset_ids")]
     assert len(assets) == len(set(assets))
     assert len(hits) <= config.retrieval.final_k

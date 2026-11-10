@@ -316,7 +316,7 @@ def dataset(store: Store, verify_pdfs: bool = False, verify_queries: bool = Fals
             "fact_release_id": release["release_id"],
         }
     if not manifest:
-        raise RagError("No prepared dataset. Run download (or fixture for offline verification).")
+        raise RagError("No prepared dataset. Prepare the configured dataset or attach a fact release.")
     # Document-only stages do not even open the query/label files. Evaluation validates labels itself.
     if verify_queries:
         if manifest.get("document_only"):

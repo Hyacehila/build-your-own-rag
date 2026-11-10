@@ -357,7 +357,7 @@ def active_parses(config: Config, store: Store, kind: str) -> list[dict]:
                 raise RagError("Active structured parse is not part of the accepted fact release.")
         elif not signature_matches(
             parsed.get("semantic_signature", parsed.get("signature", {})), signature
-        ) and not (manifest["synthetic"] and parsed.get("fixture")):
+        ):
             raise RagError(
                 f"Parser contract changed or legacy cache needs migration; run migrate before considering parse --parser {kind}."
             )

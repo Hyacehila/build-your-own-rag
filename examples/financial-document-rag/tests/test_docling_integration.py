@@ -1,36 +1,43 @@
-"""Opt-in test of the learned local parser, with no paid API and no fake snapshot."""
+"""Opt-in parsing check against the real upstream financial document."""
 
+import json
 import os
+import shutil
+from pathlib import Path
 
+import pymupdf
 import pytest
 
-from financial_rag.chunking import chunk
 from financial_rag.config import Config, Parsing, Tokens
-from financial_rag.fixture import create_fixture
-from financial_rag.parsing import active_parses, parse
+from financial_rag.parsing import parse_sample
 from financial_rag.storage import Store
 
 
 @pytest.mark.docling
 @pytest.mark.skipif(
-    not os.environ.get("FINANCE_DOCLING_ARTIFACTS"), reason="Local Docling weights not provided"
+    not os.environ.get("FINANCE_DOCLING_ARTIFACTS") or not os.environ.get("FINANCE_TEST_PDF"),
+    reason="Set FINANCE_TEST_PDF to the upstream JPMorgan report and provide local Docling weights",
 )
-def test_real_pdf_parser_heading_hierarchy_tables_and_sources(tmp_path):
+def test_real_pdf_parser_preserves_table_and_physical_page(tmp_path):
+    pdf_path = tmp_path / "jpmorgan_chase_2024.pdf"
+    shutil.copy2(Path(os.environ["FINANCE_TEST_PDF"]), pdf_path)
+    with pymupdf.open(pdf_path) as pdf:
+        assert len(pdf) >= 220
+        assert "15,371" in pdf[219].get_text() and "14,655" in pdf[219].get_text()
+        pages = len(pdf)
     config = Config(
         work_dir=tmp_path,
         tokenizer=Tokens(kind="approx", estimated=True),
         parsing=Parsing(artifacts_path=os.environ["FINANCE_DOCLING_ARTIFACTS"]),
     )
+    doc = {"id": "real-report-test", "doc_id": "jpmorgan_chase_2024",
+           "filename": pdf_path.name, "pdf_path": str(pdf_path), "pages": pages}
     with Store(config.work_dir) as store:
-        create_fixture(config, store, structured_snapshot=False)
-        result = parse(config, store, "structured")
-        assert result["completed"] == ["fictional-bank"] and not result["failed"]
-        parsed = active_parses(config, store, "structured")[0]
-        nodes = store.nodes(parsed["id"])
-        table = next(n for n in nodes if n["kind"] == "table")
-        assert len(table["headings"]) >= 2
-        assert "2024" in table["text"]
-        assert {s["page_index"] for n in nodes for s in n["sources"]} == {0, 1, 2}
-        assert all(s["page_number"] == s["page_index"] + 1 for n in nodes for s in n["sources"])
-        result = chunk(config, store, "structured")
-        assert result["types"]["table"] > 0 and result["types"]["picture"] > 0
+        store.put("documents", doc["id"], doc)
+        store.set_meta("dataset", {"documents": [doc], "synthetic": False})
+        result = parse_sample(config, store, doc["doc_id"], 220, 220)
+        assert not result["failed"]
+        nodes = json.loads(Path(result["nodes"]).read_text(encoding="utf-8"))
+        tables = [node for node in nodes if node["kind"] == "table"]
+        assert any("15,371" in node["text"] and "14,655" in node["text"] for node in tables)
+        assert all(source["page_number"] == 220 for node in nodes for source in node["sources"])

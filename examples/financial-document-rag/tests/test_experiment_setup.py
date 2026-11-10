@@ -1,4 +1,4 @@
-"""Exercise frozen preparation and the real driver against a loopback-only provider."""
+"""Exercise preparation and the driver with an in-process test provider."""
 import importlib
 import json
 import shutil
@@ -27,6 +27,15 @@ def prepared_inputs(configured, monkeypatch):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'tools'))
     setup = importlib.import_module('experiment_setup')
     monkeypatch.setattr(setup, 'PROJECT', project)
+    # Some sandboxed Windows environments cannot create hard links. The test
+    # exercises plan preparation using isolated temporary copies in that case.
+    original_link = setup.os.link
+    def test_link(source_path, destination_path):
+        try:
+            original_link(source_path, destination_path)
+        except PermissionError:
+            shutil.copy2(source_path, destination_path)
+    monkeypatch.setattr(setup.os, 'link', test_link)
     driver = importlib.import_module('contract_experiment')
     (project / 'tools').mkdir()
     shutil.copy2(Path(driver.__file__), project / 'tools/contract_experiment.py')
@@ -235,7 +244,7 @@ def test_exhausted_failure_and_successful_retries_have_one_terminal_report(prepa
         key = (arm, question['query_id'])
         counts[key] = counts.get(key, 0)+1
         result = original(self, question, arm, **kwargs)
-        failures = {'fixture-revenue': 1, 'fixture-growth': 4, 'fixture-cash': 3}
+        failures = {'q1': 1, 'q2': 4, 'q3': 3}
         if arm == 'A' and counts[key] <= failures[question['query_id']]:
             result.update(status='failed', answer=None, error={'type':'SyntheticFailure','message':'offline fixture'})
         return result
@@ -247,9 +256,9 @@ def test_exhausted_failure_and_successful_retries_have_one_terminal_report(prepa
     assert review['records'] == 15 and review['terminal_valid_answers'] == 14
     assert review['checks']['exhausted_terminal_records'] == 1
     assert review['checks']['successful_checkpoint_records_present'] > 0
-    assert counts['A','fixture-growth'] == 4
-    assert counts['A','fixture-cash'] == 4
-    assert counts['A','fixture-revenue'] == 2
+    assert counts['A','q2'] == 4
+    assert counts['A','q3'] == 4
+    assert counts['A','q1'] == 2
     assert all(n == 1 for (arm,q),n in counts.items() if arm != 'A')
     assert review['stats']['A']['n'] == 3
     requests = len(fake.requests)

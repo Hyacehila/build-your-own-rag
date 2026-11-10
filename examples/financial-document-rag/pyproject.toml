@@ -40,7 +40,7 @@ dev = ["pytest>=8.3,<9", "ruff>=0.12,<1"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-markers = ["docling: real local Docling model integration (downloads weights on first use)"]
+markers = ["docling: real PDF and local Docling model integration"]
 
 [tool.ruff]
 line-length = 110

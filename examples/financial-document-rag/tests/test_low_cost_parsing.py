@@ -127,10 +127,10 @@ def test_native_grid_recovers_missing_cell_but_rejects_conflicting_number(local)
     doc = load_docling(parsed)
     pdf = store.meta("dataset")["documents"][0]["pdf_path"]
     table = doc.tables[0].model_copy(deep=True)
-    cell = next(c for c in table.data.table_cells if c.text == "150")
+    cell = next(c for c in table.data.table_cells if c.text == "9001")
     cell.text = ""
     fixed, report = native_grid_candidate(table, pdf)
-    assert report["accepted"] and any(c.text == "150" for c in fixed.data.table_cells)
+    assert report["accepted"] and any(c.text == "9001" for c in fixed.data.table_cells)
     assert cell.text == ""
     cell.text = "999999"
     _, report = native_grid_candidate(table, pdf)
@@ -142,9 +142,9 @@ def test_mineru_submission_budget_secret_isolation_and_no_automatic_retry(local,
     token = "offline-private-token"
     monkeypatch.setenv("MINERU_API_KEY", token)
     with pytest.raises(RagError, match="1-8"):
-        prepare_trial(store, [("fictional-bank", i) for i in range(1, 10)], tmp_path / "over")
+        prepare_trial(store, [("test-source", i) for i in range(1, 10)], tmp_path / "over")
     bundle = tmp_path / "trial"
-    prepare_trial(store, [("fictional-bank", 1)], bundle)
+    prepare_trial(store, [("test-source", 1)], bundle)
     seen = []
 
     def respond(request):
@@ -173,7 +173,7 @@ def test_mineru_submission_budget_secret_isolation_and_no_automatic_retry(local,
     assert len(seen) == 2
     assert token not in (bundle / "job.json").read_text()
     failed = tmp_path / "failed"
-    prepare_trial(store, [("fictional-bank", 1)], failed)
+    prepare_trial(store, [("test-source", 1)], failed)
     with httpx.Client(
         transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"code": "A0202", "msg": token}))
     ) as client:

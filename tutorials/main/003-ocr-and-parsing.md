@@ -19,11 +19,11 @@
 
 我会根据输入情况先找几页有代表性的材料，对照原页看结果，记录失败位置，再决定是否调整配置或换一条解析路线。只看到解析成功状态，或者导出的 Markdown 看起来很顺，还不足以判断事实层已经可用。
 
-## 用金融示例检查交付结果
+## 对照金融财报检查解析结果
 
-[金融教学路线](../../examples/financial-document-rag/TEACHING.md)提供原始 PDF、已知布局的 DoclingDocument 和后续回读入口。先对照它们，确认自己理解章节、表格、图片和来源位置怎样表达。这个教学对象是按布局构造的，不能用它验证 OCR 或真实版面解析效果。
+第一章的摩根大通年报在 PDF 物理第 220 页包含一张衍生品应付款表。对照原页和解析结果时，先确认两列年度、金额与“百万美元”的单位，再检查表格前的说明文字和它所属的章节。只抽出 `15,371` 和 `14,655`，还不能判断这两个数字的含义。
 
-验证自己的解析路线时，选一份有权使用的小型文档，按[文档解析练习](../../examples/financial-document-rag/TEACHING.md#文档解析的练习)准备独立输入。至少检查一个正文区域、一张表或图片、一个标题边界，确认它们能回到正确的原页。发现问题时，区分文字识别错误、版面顺序错误、结构关系错误和来源映射错误；这些问题需要的修复方式不同。
+这页有可提取的文字层，检查它不等于检查了扫描页的 OCR。对于其他页面，我会分别对照正文区域、表格或图片、标题边界和来源位置，区分文字识别错误、版面顺序错误、结构关系错误与来源映射错误；这些问题需要的修复方式不同。
 
 ## 为什么我没有选择 Unstructured
 
@@ -33,12 +33,10 @@ Docling 和 Unstructured 都是不错的文档处理工具，可以把 PDF、DOC
 
 我更看重 Docling 提供的统一文档表示，以及围绕这个表示替换处理组件的能力。Docling 本身也提供解析流程，但[后端与 pipeline 可以配置和扩展](https://docling-project.github.io/docling/concepts/architecture/)，部分处理还可以[接入远程模型服务](https://docling-project.github.io/docling/usage/advanced_options/#using-remote-services)。对我来说，这意味着可以先确定最终要保留的文档对象，再根据输入选择合适的处理方式。对于没有现成接口的服务，也可以编写适配逻辑，把它的输出整理成 DoclingDocument。
 
-例如，某类 PDF 的处理效果不好时，我希望能够调整 OCR、解析后端或模型服务，再把结果整理进 DoclingDocument，让后续的切片和查询继续使用统一对象。外部解析结果往往仍需适配，节点类型、阅读顺序和来源位置都需要对应起来。我愿意做这部分工作，以便根据数据调整具体组件。我在博客里就聊了如何结合 MinerU 和 Docling，实现更好的效果。
+例如，某类 PDF 的处理效果不好时，我希望能够调整 OCR、解析后端或模型服务，再把结果整理进 DoclingDocument，让后续的切片和查询继续使用统一对象。外部解析结果仍需适配，节点类型、阅读顺序和来源位置都需要对应起来。我在博客里就聊了如何结合 MinerU 和 Docling，实现更好的效果。
 
 两者在文档模型上的组织方式也不同。Unstructured 的文档处理接口以元素为中心，可以通过元数据表达层级关系；DoclingDocument 则按类型保存节点，再通过引用组织文档树，后者对我更直观。在切片时，Unstructured 也会利用文档元素，并支持按标题保留章节边界和类似 LangChain 的各种切片工具。我更喜欢 Docling 围绕文档对象进行[结构感知切片](https://docling-project.github.io/docling/concepts/chunking/)，再通过 `contextualize()` 把标题等上下文补入切片文本的方式，这与我保留统一事实层的思路更契合。
 
 Unstructured 还有一个值得考虑的优势：数据接入（Ingestion）。它的 Ingest 工具按 source connector → processing → destination connector 组织流程，提供 [Google Drive](https://docs.unstructured.io/open-source/ingestion/source-connectors/google-drive)、[GitHub](https://docs.unstructured.io/open-source/ingestion/source-connectors/github) 等现成的数据源连接器。如果企业知识来自这些服务，Unstructured 可以减少接入工作。相比之下，Docling 核心更侧重文档转换，数据源采集和同步通常需要配合其他工具完成。
-
-我喜欢 DoclingDocument 的表示方式，这是我选择它的核心原因。不过，如果你的主要需求是接入多个数据源，Unstructured 的连接器也值得考虑，具体选择还是要看自己的数据和处理流程。
 
 本章原创正文采用 [CC BY 4.0](../../LICENSE-DOCS)。

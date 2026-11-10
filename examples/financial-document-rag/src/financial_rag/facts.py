@@ -149,9 +149,7 @@ def migrate(config, store) -> dict:
                 legacy.pop("implementation", None)
                 legacy["options"].pop("artifacts_path", None)
                 legacy["contract"] = signature["contract"]
-            if not signature_matches(legacy, signature) and not (
-                manifest["synthetic"] and raw.get("fixture")
-            ):
+            if not signature_matches(legacy, signature):
                 raise RagError(
                     "Legacy parser options, dependency versions or weights differ; migration refused."
                 )

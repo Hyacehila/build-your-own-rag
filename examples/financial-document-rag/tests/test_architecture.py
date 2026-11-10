@@ -48,8 +48,8 @@ def test_normalization_content_and_relations(local):
     migrate(config, store)
     assert ids == [current_index(config, store, k)["id"] for k in ("flat", "structured")]
     active = active_parses(config, store, "structured")[0]
-    assert active["raw_parse_id"] == parsed["id"]
-    assert active["id"] != parsed["id"]
+    assert active["raw_parse_id"] == parsed.get("raw_parse_id", parsed["id"])
+    assert active["id"] != active["raw_parse_id"]
     assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 
 

@@ -42,6 +42,7 @@ def test_retired_strategy_and_unused_switches_are_rejected(options):
 
 def test_offline_configuration_has_same_strategy_without_provider_routes():
     cfg = load_config(ROOT / 'config.offline.toml')
+    assert cfg.dataset.expected_english_queries == 296
     assert cfg.retrieval.rrf_k == 20 and cfg.query.bc_text_tokens == 25000
     assert cfg.query.bc_assembly == 'BC-source-priority-v3'
     assert cfg.retrieval.flat_final_k==10 and cfg.retrieval.summary_supplement_k==5

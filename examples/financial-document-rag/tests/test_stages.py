@@ -112,7 +112,7 @@ def test_empty_table_region_uses_original_image_and_vision_identity(configured):
     assert enrichment_key(config, table) != key
 
 
-def test_parser_does_not_mistake_fixture_snapshot_for_real_conversion(local, monkeypatch):
+def test_parser_reuses_readable_snapshot_and_retries_invalid_snapshot(local, monkeypatch):
     config, store = local
     import financial_rag.parsing as module
 
@@ -130,15 +130,13 @@ def test_parser_does_not_mistake_fixture_snapshot_for_real_conversion(local, mon
             return SimpleNamespace(document=document, status=SimpleNamespace(value="success"), errors=[])
 
     monkeypatch.setattr(module, "_converter", lambda _: Converter())
-    assert parse(config, store, "structured")["completed"] == ["fictional-bank"]
-    assert len(calls) == 1
-    assert parse(config, store, "structured")["cached"] == ["fictional-bank"]
-    assert len(calls) == 1
-    # A corrupted snapshot invalidates the cache, even with unchanged configuration.
+    assert parse(config, store, "structured")["cached"] == ["test-source"]
+    assert not calls
+    # An unreadable snapshot invalidates the cache, even with unchanged configuration.
     new = active_parses(config, store, "structured")[0]
     Path(new["snapshot"]).write_text("{}", encoding="utf-8")
-    assert parse(config, store, "structured")["completed"] == ["fictional-bank"]
-    assert len(calls) == 2
+    assert parse(config, store, "structured")["completed"] == ["test-source"]
+    assert len(calls) == 1
 
 
 def test_parse_failure_is_persisted_and_blocks_index(local, monkeypatch):
@@ -149,8 +147,11 @@ def test_parse_failure_is_persisted_and_blocks_index(local, monkeypatch):
         raise RuntimeError("test layout model unavailable")
 
     monkeypatch.setattr(module, "_converter", unavailable)
+    doc = store.meta("dataset")["documents"][0]
+    with store.db:
+        store.db.execute("DELETE FROM metadata WHERE key=?", (f"parse:structured:{doc['id']}",))
     result = parse(config, store, "structured")
-    assert result["failed"] == ["fictional-bank"]
+    assert result["failed"] == ["test-source"]
     with pytest.raises(RagError, match="Incomplete"):
         active_parses(config, store, "structured")
 

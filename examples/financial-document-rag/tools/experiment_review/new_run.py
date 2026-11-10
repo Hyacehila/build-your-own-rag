@@ -405,7 +405,7 @@ def render_report(result, output):
     def table(headers, rows):
         return '<table><tr>'+''.join('<th>'+html.escape(str(x))+'</th>' for x in headers)+'</tr>'+''.join('<tr>'+''.join('<td>'+html.escape(str(x))+'</td>' for x in row)+'</tr>' for row in rows)+'</table>'
     parts=['<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>实验终态报告</title><style>body{font:16px/1.7 system-ui,Microsoft YaHei;max-width:1100px;margin:40px auto;color:#18293d}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccd5df;padding:8px}code{overflow-wrap:anywhere}</style><h1>实验终态报告</h1>',
-           '<p>运行：'+html.escape(result['run_id'])+'。本报告直接读取本轮原始材料，没有调用模型或改动评分。</p>',
+           '<p>运行：'+html.escape(result['run_id'])+'。本报告由本轮原始材料生成，生成过程不调用模型或修改评分。</p>',
            '<h2>统一终态成绩</h2>',table(['组别','正确/题数','正确率','平均原文token估计'],[[a,f"{s['correct']}/{s['n']}",f"{s['accuracy']:.2%}",round(s['mean_original_tokens_estimated'])] for a,s in result['stats'].items()]),
            '<p>补跑耗尽按错计，分母固定；不分别发布各轮补跑成绩。当前小样用于流程验证，不是独立性能结论。</p>' if result['questions_per_arm']<=5 else '<p>补跑耗尽按错计，分母固定；不分别发布各轮补跑成绩。题集曾参与开发与历史观察，不称盲测。</p>',
            '<h2>配对得失</h2>',table(['比较','改善','退化','净增','精确p','Holm p'],[[name,len(p['gains']),len(p['losses']),p['net'],round(p['exact_two_sided_p'],6),round(p['holm_p'],6)] for name,p in {**result['main_paired'],**result['diagnostic_paired']}.items()]),
@@ -414,7 +414,7 @@ def render_report(result, output):
            f"<p>API边界({result['api_start']}, {result['api_end']}]，共{result['new_physical_requests']}次物理请求，包含重试和全部尝试。评分任务按问题、参考、候选与judge身份关联；新增和历史缓存不重复计费。{len(result['unknown_unassociated_request_bodies'])}个未关联账本的body提交/用量未知，不能算零。无实际账单，不虚构货币费用。</p>",
            '<h2>模型与原图实际路由</h2>',table(['角色','请求模型','返回别名','请求数'],[[r['role'],r['requested_model'],r['returned_model'],r['requests']] for r in result['actual_routing']]),
            '<p>响应别名不能证明上游权重。图像由chat inline发送，不代表存在独立vision推理。各组物理图像发送次数（含重发）：'+html.escape(str(result['physical_inline_image_occurrences']))+'</p>',
-           '<h2>来源、读取与限制</h2><p>当前参与组：'+html.escape(', '.join(result['arms']))+'。策略：'+html.escape(str(result['retrieval_contract']))+'。A 组本轮选择 10 个入口，历史批次选择 20 个入口，读取范围不同，应按批次报告；B/C 超过本轮 A 不能单独证明优于历史批次的 A。B/C共同25k/8图，明确关系前移；C同一查询执行原始与摘要两次索引查找，复用查询向量，一次回答。原文来源和检索核查不证明语义正确；加载原图不等于模型实际看见。D规则仅在本轮包含D时适用。</p>',
+           '<h2>来源、读取与限制</h2><p>当前参与组：'+html.escape(', '.join(result['arms']))+'。策略：'+html.escape(str(result['retrieval_contract']))+'。A 组本轮选择 10 个入口，历史批次选择 20 个入口，读取范围不同，应按批次报告；B/C 超过本轮 A 不能单独证明优于历史批次的 A。B/C共同25k/8图，明确关系前移；C同一查询执行原始与摘要两次索引查找，复用查询向量，一次回答。来源与检索核查记录资料来源和检索过程；内容是否语义正确、模型是否实际看到已加载的原图，仍需分别判断。D规则仅在本轮包含D时适用。</p>',
            table(['诊断','数量'],[['原文切片核对',result['checks'].get('original_text_slices',0)],['RRF20搜索核对',result['checks'].get('RRF20_searches',0)],['模型工具归属',result['checks'].get('model_tool_ownership',0)],['无效引用记录',result['invalid_citation_records']],['有效答案无正式引用',result['valid_answer_empty_citation_records']]]),
            '<p>逐阶段读取量、开发题分层、Wilson区间、缓存归属和所有配对题号见analysis.json。cases.json保留得失两侧答案、原judge与原文；标签争议需人工结合原文说明，不自动改标签。</p>',
            '<p><a href="analysis.json">完整统计</a> · <a href="audit.json">来源与执行核查</a> · <a href="cases.json">原文得失案例</a> · <a href="terminal-results.csv">逐题结果</a> · <a href="artifacts.json">文件清单</a></p></html>']

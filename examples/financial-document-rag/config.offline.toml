@@ -1,5 +1,5 @@
-# Synthetic offline fixtures only: no provider endpoints or credentials.
-# Synthetic counterpart of the A, B and C strategies.
+# Local checks without configured provider endpoints or credentials.
+# Data downloads still require network access and the prepared inputs described in OPERATIONS.md.
 work_dir = ".local/offline"
 
 [retrieval]

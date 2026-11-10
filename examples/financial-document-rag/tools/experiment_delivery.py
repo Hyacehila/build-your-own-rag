@@ -80,17 +80,17 @@ def build_delivery(plan_path):
           '<style>body{font:16px/1.7 system-ui;max-width:1200px;margin:40px auto;padding:20px;color:#202b36}table{border-collapse:collapse;width:100%;margin:20px 0}td,th{border:1px solid #ccd5de;padding:8px;text-align:left}pre{white-space:pre-wrap}</style>',
           '<h1>五组实验最终汇总</h1><p>888 条新 A/B/C＋592 条复用 pre-D/D，共 1,480 条。执行完成、来源核查和答案正确率分别判断。各组分母固定 296；失败耗尽按错记。</p>',
           table(['组','来源批次','正确/总数','正确率','平均原文估计 token','平均加载图片'],[[a,stats[a]['run_id']+' / '+stats[a]['origin'],f"{stats[a]['correct']}/{stats[a]['n']}",f"{stats[a]['accuracy']:.2%}",round(stats[a]['mean_original_tokens_estimated']),round(stats[a]['mean_loaded_images'],2)] for a in arms]),
-          '<h2>方案与解释边界</h2><p>五组统一命名为 A、B、C、pre-D、D。A 最终选择 10 个平面原文入口；B 最多选择 20 个原始入口。C 保留 B 原始入口并补最多 5 个新增覆盖摘要入口；B/C 共用六阶段装配和 25k/8 图上限，不设置跨小节保留额度。C 是同查询两次索引查找、一次回答，复用查询向量。摘要本身不是证据。</p>',
-          '<p>D/pre-D 保持原 run_id、记录、评分和请求；本轮没有重新生成或调用 judge。D 的 193 题仍为原四次尝试耗尽零分。当前代码提供相同 D 策略，但删除旧源码后不宣称可完整重建历史代码环境。</p>',
+          '<h2>方案与解释边界</h2><p>五组统一命名为 A、B、C、pre-D、D。A 最终选择 10 个平面原文入口；B 最多选择 20 个原始入口。C 保留 B 原始入口并补最多 5 个新增覆盖摘要入口；B/C 共用六阶段装配和 25k/8 图上限，不设置跨小节保留额度。C 是同查询两次索引查找、一次回答，复用查询向量。摘要用于检索，回答以原文为证据。</p>',
+          '<p>D/pre-D 保持原 run_id、记录、评分和请求；本轮没有重新生成或调用 judge。D 的 193 题仍为原四次尝试耗尽零分。当前代码提供相同 D 策略；旧源码已删除，历史代码环境的完整重建未作保证。</p>',
           '<h2>配对得失与不确定性</h2><p>改善/退化按右组相对左组计算。ABC 内部比较属于本轮；涉及 D/pre-D 与 ABC 的比较跨运行批次，存在生成及评分时间差异。精确配对检验和 Holm 校正不消除开发题选择或文档相关性。</p>',
           table(['比较','改善','退化','净增','精确 p','Holm p'],[[k,len(v['gains']),len(v['losses']),v['net'],round(v['exact_two_sided_p'],6),round(v['holm_p'],6)] for k,v in pairs.items()]),
-          '<h2>费用与请求</h2><p>以下两张账本分别统计，本次费用不再计入历史复用调用。实际货币账单不可见，token 估计和提供商已报用量不能冒充实际费用。</p>',
+          '<h2>费用与请求</h2><p>以下两张账本分别统计本次新增和历史复用调用。实际货币账单不可见，token 估计和提供商已报用量不等同于实际费用。</p>',
           '<h3>本次新增</h3>',table(['角色','物理请求','已报 token','用量未知请求'],[[role,u['requests'],u['total_tokens_reported'],u['usage_missing_requests']] for role,u in result['new_usage'].items()]),
           '<h3>D/pre-D 历史投入（关联请求去重）</h3>',table(['角色','物理请求','已报 token','用量未知请求'],[[role,u['requests'],u['total_tokens_reported'],u['usage_missing_requests']] for role,u in result['reused_historical_usage_not_new'].items()]),
-          '<p>原全量主动暂停时存在在途请求提交/用量未知；账本没有孤立请求体也不能将此开销记零。源库摘要构建属于更早历史投入，详见本轮核查报告，不能与新生成账本重复相加。</p>',
-          '<h2>来源、图片和案例</h2><p><a href="../review/REPORT.zh-CN.html">查看 ABC 原文来源核查、分阶段读取量、真实发送/省略图片、得失案例与模型路由</a>；逐题答案及原评分理由保存在运行库，全部组别索引见 <a href="per-question.csv">逐题 CSV</a>。来源绑定及加载图片不等于模型实际看到全部原图，也不证明语义正确。</p>',
+          '<p>原全量主动暂停时存在在途请求提交/用量未知；即使账本没有孤立请求体，这部分开销仍为未知。源库摘要构建属于更早历史投入，详见本轮核查报告，不与新生成账本重复相加。</p>',
+          '<h2>来源、图片和案例</h2><p><a href="../review/REPORT.zh-CN.html">查看 ABC 原文来源核查、分阶段读取量、真实发送/省略图片、得失案例与模型路由</a>；逐题答案及原评分理由保存在运行库，全部组别索引见 <a href="per-question.csv">逐题 CSV</a>。来源绑定用于追踪资料，图片加载记录说明哪些原图被加载；模型是否实际看到全部原图，以及内容是否语义正确，仍需分别判断。</p>',
           '<h3>复用批次的图像与引用诊断</h3><pre>'+html.escape(json.dumps(result['reused_diagnostics'],ensure_ascii=False,indent=2))+'</pre>',
-          '<h2>证据限制</h2><p>所有题目历史结果均已被观察，49 道开发题及历史 76 题开发范围须一并披露，本轮不称盲测。原标签与评分规则保持不变，争议单列而不改分。B 到 pre-D 包含改写和初始装配差异；pre-D 到 D 包含固定首扩展及后续主动读取，不能归因单一因素。返回模型别名不能独立证明上游权重。A 组本轮选择 10 个入口，历史批次选择 20 个入口。B/C 高于本轮 A 不单独证明 B/C 自身提高或超过历史批次的 A。</p></html>']
+          '<h2>证据限制</h2><p>所有题目历史结果均已被观察；49 道开发题及历史 76 题开发范围一并披露，本轮不称盲测。原标签与评分规则保持不变，争议单列而不改分。B 到 pre-D 包含改写和初始装配差异；pre-D 到 D 包含固定首扩展及后续主动读取，不能归因单一因素。返回模型别名不能独立证明上游权重。A 组本轮选择 10 个入口，历史批次选择 20 个入口。B/C 高于本轮 A 不单独证明 B/C 自身提高或超过历史批次的 A。</p></html>']
     rendered='\n'.join(text)
     manual=output/'manual-review.html'
     if manual.is_file():

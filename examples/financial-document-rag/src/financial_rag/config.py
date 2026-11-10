@@ -210,7 +210,7 @@ class Dataset(Strict):
     revision: str = DATASET_REVISION
     expected_documents: int = 6
     expected_pages: int = 2942
-    expected_english_queries: int = 309
+    expected_english_queries: int = 296
 
     @model_validator(mode="after")
     def pinned(self):

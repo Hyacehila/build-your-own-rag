@@ -1,17 +1,15 @@
 import json
-import re
 
 import pytest
 
+from financial_rag.api import ModelAPI
 from financial_rag.common import RagError
 from financial_rag.release_security import secret_scan
-from financial_rag.validation import protocol_check
 
 
 @pytest.mark.parametrize("reasoning", [False, True])
 def test_gateway_protocol_accepts_optional_reasoning_and_replays_it(configured, reasoning):
     config, store, fake = configured
-    config.validation.ledger = config.work_dir / "probe-budget.sqlite"
 
     def reply(path, body):
         if not path.endswith("/chat/completions"):
@@ -22,11 +20,9 @@ def test_gateway_protocol_accepts_optional_reasoning_and_replays_it(configured, 
             assert (previous.get("reasoning_content") == "Probe reasoning") is reasoning
             message = {
                 "role": "assistant",
-                "content": json.dumps({"answer": "USD 150 million", "citations": ["E1"]}),
+                "content": json.dumps({"answer": "value", "citations": ["E1"]}),
             }
         else:
-            prompt = messages[1]["content"][0]["text"]
-            version = re.search(r"doc_version=([a-f0-9]+)", prompt).group(1)
             message = {
                 "role": "assistant",
                 "content": None,
@@ -36,9 +32,7 @@ def test_gateway_protocol_accepts_optional_reasoning_and_replays_it(configured, 
                         "type": "function",
                         "function": {
                             "name": "read",
-                            "arguments": json.dumps(
-                                {"doc_version": version, "page_index": 0, "include_images": False}
-                            ),
+                            "arguments": json.dumps({"source_id": "source-1"}),
                         },
                     }
                 ],
@@ -48,11 +42,15 @@ def test_gateway_protocol_accepts_optional_reasoning_and_replays_it(configured, 
         return 200, {"choices": [{"message": message}]}
 
     fake.override = reply
-    result = protocol_check(config, store)
-    assert result["status"] == "passed"
-    assert result["tool_roundtrip"] is True
-    assert result["reasoning_content_returned"] is reasoning
-    assert result["reasoning_roundtrip"] == (True if reasoning else None)
+    api = ModelAPI(config, store, "gateway-test")
+    messages = [{"role": "system", "content": "Read before answering"},
+                {"role": "user", "content": "Find the value"}]
+    tools = [{"type": "function", "function": {"name": "read", "parameters": {"type": "object"}}}]
+    first = api.chat("chat", messages, tools=tools)
+    assert bool(first.get("reasoning_content")) is reasoning
+    messages.extend([first, {"role": "tool", "tool_call_id": "read-original", "content": "[E1] value"}])
+    final = api.chat("chat", messages)
+    assert json.loads(final["content"])["citations"] == ["E1"]
 
 
 def test_release_scan_covers_new_gateway_token(local, monkeypatch):

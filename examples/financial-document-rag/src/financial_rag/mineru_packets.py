@@ -1,4 +1,4 @@
-"""Explicit one-document MinerU comparison, separate from the eight-page smoke test."""
+"""Explicit one-document MinerU comparison, separate from the eight-page diagnostic."""
 
 import os
 from urllib.parse import urlparse

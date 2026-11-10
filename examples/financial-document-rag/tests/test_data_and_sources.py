@@ -75,13 +75,13 @@ def test_hybrid_heading_path_table_headers_and_original_read(local):
     assert any(c["kind"] == "picture" and c["asset_ids"] for c in chunks)
     tables = [c for c in chunks if c["kind"] == "table"]
     assert len(tables) > 1
-    assert all("2023 USD m" in c["text"] and "2024 USD m" in c["text"] for c in tables)
-    assert all(c["headings"] == ["1. Performance", "1.1 Revenue by business unit"] for c in tables)
+    assert all("Column A" in c["text"] and "Column B" in c["text"] for c in tables)
+    assert all(c["headings"] == ["Section A", "Section B"] for c in tables)
     reader = Reader(config, store, index)
-    tail = next(c for c in tables if "Test segment 24" in c["text"])
+    tail = next(c for c in tables if "item 24" in c["text"])
     result = reader.read(chunk_id=tail["id"])
     assert "error" not in result
-    assert any("Test segment 24" in e.get("text", "") for e in reader.evidence.values())
+    assert any("item 24" in e.get("text", "") for e in reader.evidence.values())
     assert reader.images
     check = validate_citations(["E1", "invented"], reader.public_evidence())
     assert check["validity"] == 0.5

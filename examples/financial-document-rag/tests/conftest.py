@@ -3,21 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import threading
-from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import httpx
 import pytest
 
 from financial_rag.chunking import chunk
 from financial_rag.config import Chunking, Config, Role, Tokens
-from financial_rag.fixture import create_fixture
-from financial_rag.parsing import parse
 from financial_rag.storage import Store
+from support import prepare_test_source
 
 
 class FakeAPI:
-    """Loopback-only protocol double. Its answers/scores are intentionally fabricated."""
+    """In-process protocol double. Its answers/scores are intentionally fabricated."""
 
     def __init__(self):
         self.requests = []
@@ -106,52 +103,36 @@ class FakeAPI:
         }
 
 
-@contextmanager
-def fake_server():
+@pytest.fixture
+def fake(monkeypatch):
     fake = FakeAPI()
+    fake.url = "http://test-provider.invalid/v1"
+    original_client = httpx.Client
 
-    class Handler(BaseHTTPRequestHandler):
-        def do_POST(self):
-            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            status, response = fake.response(self.path, body)
-            raw = json.dumps(response).encode()
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+    def respond(request):
+        if request.url.host != "test-provider.invalid" or request.method != "POST":
+            raise AssertionError("Unexpected request outside the test provider")
+        status, payload = fake.response(request.url.path, json.loads(request.content))
+        return httpx.Response(status, json=payload, request=request)
 
-        def log_message(self, *_):
-            pass
+    def client(*args, **kwargs):
+        if kwargs.get("transport") is None:
+            kwargs["transport"] = httpx.MockTransport(respond)
+        return original_client(*args, **kwargs)
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    fake.url = f"http://127.0.0.1:{server.server_port}/v1"
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield fake
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
+    monkeypatch.setattr(httpx, "Client", client)
+    return fake
 
 
 @pytest.fixture
-def fake():
-    with fake_server() as server:
-        yield server
-
-
-@pytest.fixture
-def local(tmp_path):
+def local(tmp_path, monkeypatch):
     config = Config(
         work_dir=tmp_path,
         tokenizer=Tokens(kind="approx", name="offline-test", estimated=True),
         chunking=Chunking(max_tokens=180, overlap=25),
     )
     with Store(tmp_path) as store:
-        create_fixture(config, store, structured_snapshot=True)
-        assert not parse(config, store, "flat")["failed"]
+        prepare_test_source(config, store, monkeypatch)
         chunk(config, store, "flat")
         chunk(config, store, "structured")
         yield config, store
@@ -165,7 +146,7 @@ def configured(local, fake):
     config.models.chat.request_params = {"max_tokens": 1024}
     proof = config.work_dir / "synthetic-capacity.json"
     proof.write_text(json.dumps({"model": config.models.chat.model, "base_url": fake.url,
-        "verification": "operator_configuration", "source_reference": "Loopback-only fake test service; not a provider capability claim",
+        "verification": "operator_configuration", "source_reference": "In-process test provider; not a provider capability claim",
         "context_window_tokens": 1000000, "image_token_upper_bound": 4096,
         "message_overhead_tokens": 16, "request_overhead_tokens": 64, "text_encoding": "cl100k_base"}))
     config.query.capacity_evidence_path = proof

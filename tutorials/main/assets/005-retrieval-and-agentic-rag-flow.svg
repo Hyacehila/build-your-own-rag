@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="716" viewBox="0 0 1200 716" role="img" aria-labelledby="title desc">
   <title id="title">Direct 与 Agentic RAG 的查询流程</title>
-  <desc id="desc">Direct 按固定顺序执行原始提问、查询重写、双路召回、RRF 融合与可选重排、来源回读和回答。Agentic 先取得两路少量候选，再由 Agent 选择关键词搜索、语义搜索或来源窗口回读。工具返回候选、证据或错误，检查预算后继续决策；证据足够或无法继续时，回答或说明资料不足。两种流程复用同一套搜索和来源回读能力，只有已读取的证据用于支持回答引用。</desc>
+  <desc id="desc">Direct 按固定顺序执行原始提问、可选查询重写、双路召回、RRF 融合与可选重排、来源回读和回答。Agentic 先进行初始搜索和来源扩展，再由 Agent 选择搜索或来源回读。工具返回候选、证据或错误，检查预算后继续决策；证据足够或无法继续时，回答或说明资料不足。两种流程复用搜索和来源回读能力，只有已读取的证据用于支持回答引用。</desc>
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
       <path d="M 0 0 L 8 4 L 0 8 Z" fill="#536779"/>
@@ -28,7 +28,7 @@
   <text x="129" y="183" text-anchor="middle" class="heading">原始提问</text>
   <text x="129" y="213" text-anchor="middle" class="body">保留用户意图</text>
   <rect x="238" y="145" width="158" height="89" rx="5" class="node"/>
-  <text x="317" y="183" text-anchor="middle" class="heading">查询重写</text>
+  <text x="317" y="183" text-anchor="middle" class="heading">可选查询重写</text>
   <text x="317" y="213" text-anchor="middle" class="body">利用已知上下文</text>
   <rect x="426" y="145" width="158" height="89" rx="5" class="node"/>
   <text x="505" y="183" text-anchor="middle" class="heading">双路召回</text>
@@ -49,14 +49,14 @@
   <path d="M 960 189 H 990" class="flow"/>
   <text x="50" y="263" class="body">候选帮助定位；回读后获得证据。</text>
 
-  <!-- The loop shows the chapter's AI-PM-style agent policy, not a universal definition. -->
+  <!-- Initial retrieval is followed by an agent-directed loop. -->
   <rect x="28" y="309" width="1144" height="354" rx="8" fill="#f4f7fa" stroke="#cbd6df"/>
   <text x="50" y="345" class="heading">Agentic</text>
   <text x="162" y="345" class="label">Agent 选择下一步，复用同一套搜索与回读能力</text>
 
   <rect x="50" y="399" width="202" height="89" rx="5" class="node"/>
-  <text x="151" y="436" text-anchor="middle" class="heading">两路初始候选</text>
-  <text x="151" y="466" text-anchor="middle" class="body">原问题与已知范围</text>
+  <text x="151" y="436" text-anchor="middle" class="heading">初始搜索与扩展</text>
+  <text x="151" y="466" text-anchor="middle" class="body">重写 · 搜索 · 初读</text>
   <rect x="330" y="399" width="200" height="89" rx="5" class="node"/>
   <text x="430" y="436" text-anchor="middle" class="heading">Agent 决策</text>
   <text x="430" y="466" text-anchor="middle" class="body">还需要找什么、读什么</text>

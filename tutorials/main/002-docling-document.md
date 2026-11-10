@@ -47,63 +47,26 @@ DoclingDocument
 
 `body` 是正文树的根。它的 `children` 保存 JSON Pointer 引用，例如 `#/texts/0` 就是当前对象里 `texts` 数组的第一个元素。节点用 `self_ref` 标记自己的地址，用 `parent` 指回父节点，也可以继续用 `children` 引用子节点。沿着这些引用和子节点顺序，就能恢复正文的层级与阅读顺序。
 
-下面用一份有标题、章节、段落和表格的文档说明。它与上图分别展示整体布局和具体引用关系，不要求节点数量相同。这个 JSON 省略了部分字段，表格内容也暂留为空：
+第一章的年报表格可以说明具体引用关系。下面从一次整理结果中摘出章节和表格的部分字段；`section` 与 `table` 是为了并排展示而加的外层名称，不是完整的 DoclingDocument：
 
 ```json
 {
-  "schema_name": "DoclingDocument",
-  "version": "1.0.0",
-  "name": "example.docx",
-  "origin": {
-    "filename": "example.docx",
-    "mimetype": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  "section": {
+    "self_ref": "#/texts/3131",
+    "label": "section_header",
+    "text": "Liquidity risk and credit-related contingent features",
+    "parent": { "cref": "#/texts/3065" }
   },
-  "body": {
-    "self_ref": "#/body",
-    "children": [
-      { "$ref": "#/texts/0" },
-      { "$ref": "#/groups/0" }
-    ]
-  },
-  "groups": [
-    {
-      "self_ref": "#/groups/0",
-      "label": "section",
-      "name": "第一章",
-      "parent": { "$ref": "#/body" },
-      "children": [
-        { "$ref": "#/texts/1" },
-        { "$ref": "#/tables/0" }
-      ]
-    }
-  ],
-  "texts": [
-    {
-      "self_ref": "#/texts/0",
-      "label": "title",
-      "text": "文档标题",
-      "parent": { "$ref": "#/body" }
-    },
-    {
-      "self_ref": "#/texts/1",
-      "label": "paragraph",
-      "text": "第一章中的一段正文",
-      "parent": { "$ref": "#/groups/0" }
-    }
-  ],
-  "tables": [
-    {
-      "self_ref": "#/tables/0",
-      "label": "table",
-      "parent": { "$ref": "#/groups/0" },
-      "data": { "table_cells": [] }
-    }
-  ],
-  "pictures": []
+  "table": {
+    "self_ref": "#/tables/150",
+    "label": "table",
+    "parent": { "cref": "#/texts/3131" },
+    "prov": [{ "page_no": 220 }]
+  }
 }
 ```
 
-读这份文档时，先从 `body.children` 找到标题，再进入“第一章”，依次读到段落和表格。段落的文字仍然只放在 `texts[1]` 中，章节里保存的是引用，不需要再复制正文。读取表格的 `parent`，也能知道它属于哪一章。这里用 group 表示章节只是一个例子，标题节点也可以直接作为其他元素的父节点。`self_ref` 是当前对象内的地址，可用于节点定位与索引。
+从表格的 `parent` 可以找到 `texts[3131]`，再沿标题的父引用找到上一级附注。节点内容仍然保存在各自的集合里，树中保存的是引用，不需要复制正文。这里标题节点直接作为表格的父节点；其他文档也可以使用 group 组织章节。不同序列化方式可能使用 `cref` 或 `$ref` 表示引用。
 
 `origin` 记录来源，`pages` 保存页面信息，节点的 `prov` 可以记录页码和边界框（`bbox`）。对象还有 `furniture` 根，用来组织页眉页脚等非正文内容。图片节点可通过 `image` 关联资源，通过 `captions` 引用图注；保存了节点或图片地址，并不等于已经提取到了实际图像。
 
@@ -156,39 +119,39 @@ DoclingDocument
 
 ## 表格：XLSX 按 Sheet 分组
 
-XLSX 的信息主要在工作表和单元格中。对于排班表、排期表和字段表，我建议一个 Sheet 对应一个 group，在组内保存一个或多个 table：
+XLSX 的信息主要在工作表和单元格中。组织工作簿时，我建议一个 Sheet 对应一个 group，在组内保存一个或多个 table。下面只示意结构，不表示年报 PDF 本身包含工作簿：
 
 ```text
 DoclingDocument
 └── body
-    ├── group(label="sheet", name="目录")
+    ├── group(label="sheet", name="sheet-0")
     │   └── table
-    ├── group(label="sheet", name="排班表")
+    ├── group(label="sheet", name="sheet-1")
     │   └── table
-    └── group(label="sheet", name="字段说明")
+    └── group(label="sheet", name="sheet-2")
         └── table
 ```
 
 一个 Sheet 未必就是一张规整表格。如果里面并排放着几块表格，或者夹有说明文字，就应按实际区域组织，文字仍可作为文本节点保留。
 
-表格内部可以继续查看 `tables[].data.table_cells[]`。以排班表中的一个单元格为例，除文字外，还要保存行列位置、合并范围和表头标记：
+表格内部可以继续查看 `tables[].data.table_cells[]`。回到年报 PDF 中 `#/tables/150` 的一个金额单元格，除文字外，还要保存行列位置、合并范围和表头标记。这里省略了坐标等字段：
 
 ```json
 {
   "row_span": 1,
   "col_span": 1,
-  "start_row_offset_idx": 4,
-  "end_row_offset_idx": 5,
-  "start_col_offset_idx": 2,
-  "end_col_offset_idx": 3,
-  "text": "夜班",
+  "start_row_offset_idx": 1,
+  "end_row_offset_idx": 2,
+  "start_col_offset_idx": 1,
+  "end_col_offset_idx": 2,
+  "text": "$ 15,371",
   "column_header": false,
   "row_header": false,
   "row_section": false
 }
 ```
 
-这个单元格位于表格内从零计数的第 4 行、第 2 列，结束索引不包含在范围内，占一行一列。`column_header`、`row_header` 和 `row_section` 分别标记列表头、行表头和行分区。遇到合并单元格，需要保留对应的跨度与起止位置，才能知道文字覆盖了哪些行列。
+这个单元格位于表格内从零计数的第 1 行、第 1 列，结束索引不包含在范围内，占一行一列；行标题和列标题分别说明它的指标与年份。`column_header`、`row_header` 和 `row_section` 分别标记列表头、行表头和行分区。遇到合并单元格，需要保留对应的跨度与起止位置，才能知道文字覆盖了哪些行列。
 
 CSV 也可以沿用表格的组织思路，只是没有工作簿和多 Sheet 层级。这种表示适合保留文档中的表格结构。如果面对的是需要频繁筛选、聚合或关联查询的大规模业务数据表，我仍建议使用数据库存储和查询。
 

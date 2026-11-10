@@ -160,7 +160,7 @@ def test_uniform_three_retries_preserve_success_and_count_exhaustion_false(confi
     # Successful question is frozen before introducing a transport failure for the other.
     original=QuestionRunner.run
     def controlled(self,q,arm,**kw):
-        if q['query_id']=='fixture-growth':
+        if q['query_id']=='q2':
             return {**q,'arm':arm,'status':'failed','answer':None,'citations':[],
                     'error':{'type':'SyntheticError','message':'fixture'},'evidence':[],
                     'initial_page_ranking':[],'trace':[],'api_usage':{},'index_id':self.index['id']}

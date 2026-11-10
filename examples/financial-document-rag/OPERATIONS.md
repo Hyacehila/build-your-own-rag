@@ -12,7 +12,7 @@
 
 新计划的 `experiment.toml` 保存已解析的 `base_url`，不再保存 `base_url_env`。已有计划中的固定地址不受环境变量影响；两种字段不能同时配置。相同实际地址、模型和参数继续得到相同模型身份；改变真实地址属于新运行配置，不用于覆盖旧计划。
 
-五组名称统一为 A、B、C、pre-D、D。唯一生产配置 `config.toml`：RRF20、两路各50；A 最终选择10个入口，B 最多选择20个原始入口，C 保留 B 的原始入口后增加最多5个摘要入口。B/C六阶段25k/8图，受控原页最后最多4k，不预留5k跨小节额度。`config.offline.toml`只用于虚构测试。
+五组名称统一为 A、B、C、pre-D、D。生产配置 `config.toml`：RRF20、两路各50；A 最终选择10个入口，B 最多选择20个原始入口，C 保留 B 的原始入口后增加最多5个摘要入口。B/C六阶段25k/8图，受控原页最后最多4k，不预留5k跨小节额度。`config.offline.toml`不配置外部模型服务，用于本地检查。
 
 容量来自 `config/gateway-capacity.json` 和原响应证明：131072上下文，16384输出预留，文本/图像代理计数乘1.2；不是准确计费。原文及索引只读复用，不因代码整理重建。
 
@@ -27,7 +27,9 @@
 | 新建检索实验 | 已验收事实库、三套索引与向量、原题及标签、容量证明 | `chunk`/`enrich`/`embed`、`experiment_setup.py` |
 | 复核当前历史结果 | 原source、cohort、运行库，以及D/pre-D独立复用包 | 既有plan和`experiment_report.py`；不重新评分 |
 
-自己的文档处理顺序是：准备文档清单与原始解析 → 按清洗技能构建候选、人工审阅标题与来源 → 验收并发布事实库 → flat/structured分块与向量化 → 摘要与enriched索引 → 准备题集 → 创建独立实验。新文档不能直接套用六份财报的profiles。当前CLI面向清单/工作区，尚无任意PDF路径的一键导入；`download`针对配置中的 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en/tree/main) 数据集，不是通用PDF导入命令。各入口参数可通过以下命令查看，这些帮助命令不创建实验或调用API：
+自己的文档处理顺序是：准备文档清单与原始解析 → 按清洗技能构建候选、人工审阅标题与来源 → 验收并发布事实库 → flat/structured 分块与向量化 → 摘要与 enriched 索引 → 准备题集 → 创建独立实验。六份财报的 profiles 对应各自的文档版本，不能直接套用到新文档。
+
+当前 CLI 面向清单和工作区，尚无任意 PDF 路径的一键导入；`download` 针对配置中的 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en/tree/main) 数据集。各入口参数可通过以下命令查看，这些帮助命令不创建实验或调用 API：
 
 ```powershell
 .\.venv\Scripts\python.exe -B -m financial_rag.cli --help
@@ -36,14 +38,16 @@
 .\.venv\Scripts\python.exe -B tools/build_contract_index.py --help
 ```
 
-正式准备器不是原文下载或清洗器。默认查找以下本地材料，缺少时会提示路径与下一步：
+正式准备器使用已准备的原文和清洗结果。默认查找以下本地材料，缺少时会提示路径与下一步：
 
 - `query.source_work_dir/experiment.sqlite`：可读事实库及完整的flat/structured/enriched索引、对应embedding；PDF和原图路径也须有效。
 - `--cohort`：`queries.jsonl`、`labels.jsonl`、`manifest.json`，包含有序题号和源数据集身份；原标签不变。固定历史296题的派生清单不随Git发布，也不由准备器自动猜测生成。
 - 预实验额外需要 `--selection`：显式固定题号清单；全量使用整个cohort。
 - 仅合并历史D/pre-D时需要 `--reuse-material`：原记录、原评分、快照与来源清单；没有复用包可以省略该参数，只运行新组别，不能填入历史分数代替缺失记录。
 
-题量、文档量和页数由配置及清单核对。更换文档或问题范围须显式准备匹配配置，不混入当前历史运行。通用上游命令仍保留，但本轮固定296题的清洗决策及历史投入无法仅凭代码仓库重建。复核材料由持有者另行交付，当前仓库不承诺自动下载历史库。
+题量、文档量和页数由配置及清单核对。作者从原始题集中筛除部分有问题的题目，固定保留 296 题；现有下载准备流程不会自动重建这份筛选清单，直接使用固定版本的上游数据会因题数不符而失败。更换文档或问题范围须显式准备匹配配置，不混入当前历史运行。
+
+本轮固定题集、清洗决策及历史投入无法仅凭代码仓库重建。复核材料由持有者另行交付，当前仓库不提供自动下载历史库的方式。
 
 ## 创建新计划
 
@@ -97,10 +101,13 @@
 
 ## 离线测试
 
+本地 `doctor` 检查 SQLite、外键、已准备的数据与索引、模型配置和预算状态，不调用模型服务，并在工作目录写入 `doctor.json`。报告中的 `dataset_check` 为 `not_prepared` 时，表示没有附加题集，题目、来源及相关索引检查未执行；`passed` 和 `failed` 分别表示已完成检查或发现问题。该检查不证明外部服务可用。
+
 ```powershell
+.\.venv\Scripts\python.exe -B -X utf8 -m financial_rag.cli --config config.offline.toml doctor
 .\.venv\Scripts\python.exe -B -X utf8 -m pytest -m 'not docling' -q --basetemp .local/audits/local-tests -p no:cacheprovider
 ```
 
-虚构材料与本地协议替身不调用外部模型。真实 Docling 权重集成测试独立标记，首次运行可能下载权重。测试覆盖组别隔离、pre-D 快照门槛、成功记录保护、SQLite/WAL 恢复、补跑耗尽、评分续评和复用记录不再评分。
+测试使用临时输入和进程内协议替身，不调用外部模型。真实财报与 Docling 权重的集成测试独立标记：设置 `FINANCE_TEST_PDF` 指向上游摩根大通年报，并设置 `FINANCE_DOCLING_ARTIFACTS` 指向本地权重目录，然后把测试命令中的 `-m 'not docling'` 换成 `-m docling`；缺少任一材料时自动跳过。测试覆盖组别隔离、pre-D 快照门槛、成功记录保护、SQLite/WAL 恢复、补跑耗尽、评分续评和复用记录不再评分。
 
 验收依据结构、类型、来源关系、文件可读性和业务不变量。既有内容 ID、缓存键与去重键保持兼容。报告重建只读原始记录，不修改答案、分数或标签。

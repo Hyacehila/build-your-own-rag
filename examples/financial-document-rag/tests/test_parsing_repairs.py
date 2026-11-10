@@ -155,7 +155,7 @@ def test_quality_flags_removed_table_number_and_bad_span(local):
     parsed = active_parses(config, store, "structured")[0]
     snapshot = load_docling(parsed).model_dump(mode="json")
     original = digest(snapshot)
-    cell = next(c for c in snapshot["tables"][0]["data"]["table_cells"] if c["text"] == "150")
+    cell = next(c for c in snapshot["tables"][0]["data"]["table_cells"] if c["text"] == "9001")
     cell["text"] = ""
     item = next(t for t in snapshot["texts"] if t.get("prov"))
     item["prov"][0]["charspan"] = [0, len(item["orig"]) + 2]
@@ -184,12 +184,12 @@ def test_sample_cache_presence_and_no_database_mutation(local, monkeypatch):
     converter = NS(format_to_options={InputFormat.PDF: NS(pipeline_options=NS())}, convert=convert)
     monkeypatch.setattr(parsing, "_converter", lambda _: converter)
     before = store.db.total_changes
-    first = parse_sample(config, store, "fictional-bank", 1, 3)
+    first = parse_sample(config, store, "test-source", 1, 3)
     assert not first["failed"] and len(calls) == 1
-    second = parse_sample(config, store, "fictional-bank", 1, 3)
+    second = parse_sample(config, store, "test-source", 1, 3)
     assert second["cached"] and len(calls) == 1
     from pathlib import Path
 
     Path(first["nodes"]).unlink()
-    parse_sample(config, store, "fictional-bank", 1, 3)
+    parse_sample(config, store, "test-source", 1, 3)
     assert len(calls) == 2 and store.db.total_changes == before

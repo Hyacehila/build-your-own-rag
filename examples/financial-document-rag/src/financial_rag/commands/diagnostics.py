@@ -42,21 +42,8 @@ def register(commands):
     p.add_argument("--doc-id", required=True)
     p.add_argument("--page", type=int, required=True, help="Physical display page number (1 based)")
     p.set_defaults(handler=source)
-    p = commands.add_parser("fixture", help="Create a small FICTIONAL PDF for local verification")
-    p.add_argument(
-        "--structured-snapshot",
-        action="store_true",
-        help="Also write a known-layout DoclingDocument; does not test the learned PDF parser",
-    )
-    p.set_defaults(handler=fixture)
-    p = commands.add_parser(
-        "doctor", help="Check local contracts; --live calls the bounded API protocol check"
-    )
-    p.add_argument("--live", action="store_true")
+    p = commands.add_parser("doctor", help="Check local configuration, storage and source relations")
     p.set_defaults(handler=doctor)
-    p = commands.add_parser("smoke", help="Run only the three fictional questions in A/B/C/D")
-    p.add_argument("--run", default="fictional-smoke-v1")
-    p.set_defaults(handler=smoke)
     p = commands.add_parser("check-known-pages", help="Check JPMorgan 73/96 and Morgan Stanley 101")
     p.set_defaults(handler=check_known_pages)
 
@@ -138,22 +125,10 @@ def source(args, config, store):
     return {"image": str(dest.with_suffix(".png")), "nodes": str(dest.with_suffix(".json")), "source": page}
 
 
-def fixture(args, config, store):
-    from ..fixture import create_fixture
-
-    return create_fixture(config, store, args.structured_snapshot)
-
-
 def doctor(args, config, store):
     from ..validation import doctor
 
-    return doctor(config, store, live=args.live)
-
-
-def smoke(args, config, store):
-    from ..validation import smoke
-
-    return smoke(config, store, args.run)
+    return doctor(config, store)
 
 
 def check_known_pages(args, config, store):
