@@ -12,13 +12,13 @@
 
 我希望把这些选择尽量留到后面。现在不做结构索引，不代表以后也不需要；今天使用一种切片方式，也不意味着它会一直适合。事实层应该保存足够清楚的来源与结构，让后续方案有调整的余地。无论你想用最传统的切片、结构化索引，还是知识图谱相关技术，我都希望我们能提供一个统一且高效的事实层。
 
-本章会借用我在 Lenny Compass 中的经验，但所有演示内容都来自一份[原创虚构的产品复盘](../../examples/structured-document-facts/fixtures/product-review.md)。读完后，你应该能够判断一份解析结果保留了什么、丢掉了什么，并理解为什么我偏爱 DoclingDocument 这样的表示。前置知识只需要基本的文档层级概念以及 JSON Pointer 的相关概念。
+本章使用[金融 RAG 示例](../../examples/financial-document-rag/TEACHING.md)中的三页虚构银行报告。后续理解解析、切片、检索与回读时，也可以继续沿这个项目阅读。读完后，你应该能够判断一份文档对象保留了什么、丢掉了什么，并理解为什么我偏爱 DoclingDocument 这样的表示。前置知识只需要基本的文档层级概念以及 JSON Pointer 的相关概念。
 
 ## 拍平一份文档，会丢掉什么
 
-样例是一份“星舟协作”的邀请流程复盘。里面有两部分：“新团队邀请实验”和“现有团队权限检查”，它们各有一个叫“观察结果”的小节。前者有邀请实验的指标表，后者解释成员权限没有变化。产品与数值都是虚构的，只为把问题讲清楚。
+样例是 Example Bank 的三页报告。第一页是业绩段落和收入图，第二页是业务收入表，第三页是风险与流动性说明。公司与数值都是虚构的，只为把问题讲清楚；表中的 `Test segment` 行专门用于长表拆分测试，不参与业务统计。
 
-这个文档有两个“观察结果”。单独看标题，无法判断它们分别在讨论什么；保留完整章节路径后，它们才容易被区分。表格需要知道哪一列是“调整后”，图片需要保留图注和正文中的说明，列表项需要知道自己属于哪份清单。人阅读时会自然利用这些关系，而把整个文档压平，并按照一定的 Chunk 大小进行切片，再设置一些 overlap，可能会丢失这些关系。
+表里的 `100` 对应 Retail 业务在 2024 年的收入，单位是百万美元。只留下这个数字，就不知道它属于哪个业务、哪个年度，也无法区分收入与现金余额。表格需要保留行列和表头，图片需要保留图注和正文中的说明，业务收入小节也需要知道自己属于业绩章节。人阅读时会自然利用这些关系，而把整个文档压平，并按照一定的 Chunk 大小进行切片，再设置一些 overlap，可能会丢失这些关系。
 
 我反对的是丢失结构，并不是 Markdown 这个格式。Lenny Compass 的输入本身就是 Markdown。标题符号、列表边界、表格和图片引用都可以提供结构；问题在于处理过程中是否继续保存和使用它们。把一份 Markdown 直接当成字符串按固定长度切开，是一种操作选择，不是 Markdown 必然带来的结果。
 
@@ -60,70 +60,50 @@ DoclingDocument 是 Docling 提供的统一文档表示。在[官方说明](http
 
 比如 `#/texts/4`，表示从当前 JSON 对象的 `texts` 数组中取索引为 4 的元素。树里的 `children` 保存这样的引用，被引用的内容仍然只在对应集合中存放。既能按结构遍历，也能按元素类型查看，不需要为每一种访问方式复制一遍正文。
 
-下面是本例实际生成的一个节点，省略了其他字段，但保留完整的 `children` 列表。完整对象见[参考 JSON](../../examples/structured-document-facts/reference/document.json)。
+下面是教学对象中的业务收入标题节点，省略了其他字段，但保留完整的 `children` 列表。完整对象见[参考 JSON](../../examples/financial-document-rag/reference/document.json)。
 
 ```json
 {
-  "self_ref": "#/texts/4",
+  "self_ref": "#/texts/3",
   "label": "section_header",
-  "text": "观察结果",
+  "text": "1.1 Revenue by business unit",
   "level": 2,
-  "parent": { "$ref": "#/texts/2" },
+  "parent": { "$ref": "#/texts/0" },
   "children": [
-    { "$ref": "#/texts/5" },
-    { "$ref": "#/groups/0" },
-    { "$ref": "#/groups/1" },
-    { "$ref": "#/tables/0" },
-    { "$ref": "#/pictures/0" },
-    { "$ref": "#/texts/8" },
-    { "$ref": "#/texts/9" }
+    { "$ref": "#/texts/4" },
+    { "$ref": "#/tables/0" }
   ]
 }
 ```
 
-这里的父节点 `#/texts/2` 是“新团队邀请实验”。沿着父级继续向上，就能知道这个“观察结果”属于哪篇文档、哪项实验。另一个同名小节是 `#/texts/12`，属于“现有团队权限检查”。标题可以重复，节点与上下文仍然能够区分。
+这里的父节点 `#/texts/0` 是“1. Performance”。它的孩子包括业绩段落、图注、收入图和业务收入小节；业务收入小节再引用表格图注 `#/texts/4` 与表格 `#/tables/0`。第三页的“2. Risk and liquidity”则是另一个一级章节，不应挂到业绩章节下面。
 
-表格和图片会比纯粹的文本更复杂。样例中的“55%”属于哪一列，应该由单元格位置和表头共同说明。在实际对象里，它位于从零计数的第 1 行、第 2 列。对于图片，我们至少需要知道资源在哪里、原文如何描述它，以及它出现在哪个章节。后面我会单独写一篇，介绍相关的解析和存储习惯。
+表格和图片会比纯粹的文本更复杂。样例中的 `100` 属于哪一列，应该由单元格位置和表头共同说明。在实际对象里，它位于从零计数的第 1 行、第 2 列，对应 Retail 与 `2024 USD m`。对于图片，我们至少需要知道原图在哪里、原文如何描述它，以及它出现在哪个章节。这里的图片节点通过 `captions` 引用 `#/texts/2`，又通过页码和区域定位到原始 PDF 的收入图。
 
-位置字段则要尊重输入本身。PDF 可以有页码和坐标，Markdown、HTML 或 Word 的最终分页未必固定。我们的 Markdown 样例没有可靠页码，所以对象中的 `pages` 和 `prov` 为空。此时可以回到指定版本的结构节点，但不能精确定位到源文件某一行。
+位置字段则要尊重输入本身。PDF 可以有页码和坐标，Markdown、HTML 或 Word 的最终分页未必固定。这个教学对象记录了三页的尺寸，以及节点的物理页和区域；这些信息来自生成夹具时的已知布局。实际解析结果中的位置则需要对照原页检查，不能因为字段存在就认为它准确。
 
-### 从 Markdown 解析结果到本例保存的事实层
+### 从金融教学对象到原文回读
 
-Docling 为各种常见格式提供了解析后端，各个 Pipeline 调用相关后端，生成对应的 DoclingDocument 文件并输出。不过，它在解析 Markdown 时一直有一个遗留的小问题（仅限 Markdown）。这里简单聊一聊这个问题，以便更好地理解 Docling 的解析逻辑。
-
-Markdown 后端可以识别出标题、段落、列表、表格和图片等元素，也保存了标题级别与阅读顺序。样例中的一级标题成为 `title`，二级和三级标题成为 `section_header`，其 `level` 分别为 1 和 2。但在这条转换路径中，后端没有进一步把后续段落、表格等节点挂到所属标题下面。[对应版本的后端源码](https://github.com/docling-project/docling/blob/v2.120.1/docling/backend/md_backend.py#L342-L344)明确注明，Marko 的语法树没有将章节内容作为标题的子节点，这部分父节点跟踪尚未实现。对于直接使用切片功能的用户，这其实是无所谓的，但是如果我们想构建一个统一的事实层，这是需要注意的问题。
-
-以第一张表为例，原始转换对象中的主要节点是这样排列的。图中省略了其他节点，剩余节点仍按原有顺序展示：
+这个小样例的结构已知，因此直接构造 DoclingDocument，让我们先看清最终希望保留的东西。下面省略了其他字段，按实际正文关系展开：
 
 ```text
 body
-├── #/texts/0   title：星舟协作：邀请流程复盘
-├── #/texts/2   section_header，level=1：新团队邀请实验
-├── #/texts/4   section_header，level=2：观察结果
-├── #/tables/0  邀请实验指标表
-├── #/texts/10  section_header，level=1：现有团队权限检查
-└── #/texts/12  section_header，level=2：观察结果
+├── #/texts/0   1. Performance
+│   ├── #/texts/1    业绩段落
+│   ├── #/texts/2    收入图图注
+│   ├── #/pictures/0 收入图
+│   └── #/texts/3    1.1 Revenue by business unit
+│       ├── #/texts/4  收入表图注
+│       └── #/tables/0 业务收入表
+└── #/texts/5   2. Risk and liquidity
+    └── #/texts/6    风险与流动性段落
 ```
 
-表格的 `parent` 是 `#/body`，所以直接查询父节点得不到章节名。不过，顺着阅读顺序看，表格前最近的二级章节是“新团队邀请实验”，其下最近的小节是“观察结果”。标题级别和顺序足以按章节边界推导出这条路径。这就是同一个对象中“已有层级信息”和“已建立父子关系”的区别。
+表格的父级链是 `#/tables/0` → `#/texts/3` → `#/texts/0` → `#/body`，其来源记录指向物理第 2 页。图注与图表分别是正文节点，又通过 `captions` 关联；这与父子关系不是一回事。完整关系见[参考文档树](../../examples/financial-document-rag/reference/structure.txt)。
 
-在保存事实层之前，直接调用 Docling Core 已有的 `_hierarchize()`。这个方法在当前 DoclingDocument 上，根据已有标题级别和阅读顺序调整父子关系；后续内容归入当前章节，同级或更高层级的新标题结束前面的相应范围。整理后的主要关系如下：
+运行[教学入口](../../examples/financial-document-rag/TEACHING.md#本地生成与回读)时，程序用同一份夹具构建平面与结构化切片，再按表格节点读取原文。切片是后续检索入口，回读结果保留表格原文及来源页，不需要把切片当作唯一剩下的文档。
 
-```text
-星舟协作：邀请流程复盘
-├── 新团队邀请实验
-│   └── 观察结果
-│       ├── 结论段落与列表
-│       ├── 邀请实验指标表
-│       └── 图片引用、图注及说明
-└── 现有团队权限检查
-    └── 观察结果
-        └── 权限说明与列表
-```
-
-[适配前的对象](../../examples/structured-document-facts/reference/parsed-document.json)保留后端原始结果；[适配后的对象](../../examples/structured-document-facts/reference/document.json)是本例最终保存与回读的事实层，另有[完整结构树](../../examples/structured-document-facts/reference/structure.txt)供核对。两份对象中，表格仍是 `#/tables/0`，但它的父节点由 `#/body` 变为 `#/texts/4`，再向上依次是 `#/texts/2`、`#/texts/0` 和 `#/body`。它属于哪个章节，现在可以直接沿引用读出来。
-
-这样，我们就构建了统一的事实层结构。后面会有单独的一章，详细聊聊我对不同格式的处理习惯以及其他相关问题。作为教程的第一篇，理解到这里就足够了。
+真实财报的树不能像夹具这样预先知道，需要经过解析、结构整理与原页检查。金融示例保留了这些环节的实现；本章先理解交付对象，后面再讨论如何从复杂文件中获得它。教学夹具的成功不证明真实 PDF 的解析质量。
 
 ## Lenny Compass 以及一些个人经验
 
@@ -143,9 +123,9 @@ Lenny Compass 是我围绕个人订阅资料做的一个 RAG 项目，希望通�
 
 ## 样例说明与小结
 
-运行入口与环境要求见[示例说明](../../examples/structured-document-facts/README.md#构建与读取)。不想先安装依赖，也可以直接对照[原始 Markdown](../../examples/structured-document-facts/fixtures/product-review.md)和[参考输出](../../examples/structured-document-facts/reference/README.md)阅读。
+运行入口与环境要求见[金融教学路线](../../examples/financial-document-rag/TEACHING.md)。不想先安装依赖，也可以直接对照[原始 PDF](../../examples/financial-document-rag/reference/fictional-bank.pdf)和[参考输出](../../examples/financial-document-rag/reference/README.md)阅读。
 
-先找到两个“观察结果”，检查它们的父级是否不同；再看表格中的“55%”，确认列标题和统计口径都还在。随后查看图片地址、图注，以及适配前后这些关系发生了什么变化。最后尝试拿一个不同文档版本的定位信息回读，观察程序是否明确拒绝，而不是静默返回错误内容。如果有自己的数据，也不妨尝试用这套逻辑去解析并看看相关结果，理解我们会交给后续系统什么样的数据。
+先找到“1.1 Revenue by business unit”，沿父级读到“1. Performance”；再看表格中的 `100`，确认行标题、年度和单位都还在。随后查看收入图与图注的引用，找到它们在原 PDF 中的位置。运行后对照 `chunks.json` 和 `readback.json`，看看切片提供了什么、原文回读又保留了什么。如果有自己的数据，也不妨对照原页检查相关结果，理解我们会交给后续系统什么样的数据。
 
 进入下一步之前，用几个问题作为本章的收尾：
 
@@ -161,7 +141,7 @@ Lenny Compass 是我围绕个人订阅资料做的一个 RAG 项目，希望通�
 
 - Hyacehila：[《让 OCR 再次伟大》](https://hyacehila.github.io/blog/2026/07/04/make-ocr-great-again/)，关于结构恢复、表示与查询边界的讨论。
 - Docling：[Docling document](https://docling-project.github.io/docling/concepts/docling_document/)，文档对象的官方概念说明。
-- Docling Core：[文档类型定义](https://github.com/docling-project/docling-core/blob/main/docling_core/types/doc/document.py)与 [HierarchicalChunker 实现](https://github.com/docling-project/docling-core/blob/main/docling_core/transforms/chunker/hierarchical_chunker.py)。链接为上游当前源码，本例实际行为以锁定的 2.91.0 版本及验证结果为准。
-- Lenny Compass 的代码参考版本、抽取范围和新增适配规则见[示例来源说明](../../examples/structured-document-facts/README.md#来源与简化范围)。公开教程不依赖私有仓库访问。
+- Docling Core：[文档类型定义](https://github.com/docling-project/docling-core/blob/v2.91.0/docling_core/types/doc/document.py)与 [HierarchicalChunker 实现](https://github.com/docling-project/docling-core/blob/v2.91.0/docling_core/transforms/chunker/hierarchical_chunker.py)，对应金融示例锁定的 2.91.0 版本。
+- [金融教学材料来源](../../examples/financial-document-rag/reference/README.md)。Lenny Compass 部分保留作者的项目经验，公开教程不依赖私有仓库访问。
 
 本章为作者基于上述经验重新撰写的教程，原创正文采用 [CC BY 4.0](../../LICENSE-DOCS)；关联示例中的原创代码采用 [MIT](../../LICENSE)。

@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from financial_rag.chunking import current_index
-from financial_rag.common import RagError, read_jsonl, sha256
+from financial_rag.common import RagError, read_jsonl
 from financial_rag.dataset import download
 from financial_rag.enrichment import enrich, enrichment_key
 from financial_rag.parsing import active_parses, load_docling, parse
@@ -45,7 +45,7 @@ def test_model_bundle_checks_presence_without_checksum(tmp_path):
 
     weight = tmp_path / "model.safetensors"
     weight.write_bytes(b"offline model integrity fixture")
-    write_json(tmp_path / "manifest.json", {"files": [{"path": weight.name, "sha256": sha256(weight)}]})
+    write_json(tmp_path / "manifest.json", {"files": [{"path": weight.name}]})
     assert verify_models(tmp_path)
     weight.write_bytes(b"changed weights")
     assert verify_models(tmp_path)
@@ -199,7 +199,6 @@ def test_download_checks_size_and_joins_full_mapping(local, monkeypatch):
         SimpleNamespace(
             rfilename=p.relative_to(dest).as_posix(),
             size=p.stat().st_size,
-            lfs={"sha256": sha256(p)},
             blob_id=None,
         )
         for p in dest.rglob("*")
@@ -222,7 +221,7 @@ def test_download_checks_size_and_joins_full_mapping(local, monkeypatch):
     config.dataset.expected_english_queries = 3
     result = download(config, store)
     assert result["counts"] == {"documents": 1, "pages": 3, "queries": 3}
-    assert result["files"]["pdfs/" + doc["filename"]] == sha256(pdf)
+    assert result["files"]["pdfs/" + doc["filename"]] == {"bytes": pdf.stat().st_size}
     assert result["language"] == "english"
     assert not list(dest.glob("queries/*.parquet"))
     assert not list(dest.glob("qrels/*.parquet"))
@@ -233,8 +232,8 @@ def test_download_checks_size_and_joins_full_mapping(local, monkeypatch):
     with pdf.open("r+b") as f:
         f.seek(-8, 2)
         f.write(b"BAD")
-    from financial_rag.dataset import _verify_download
+    from financial_rag.dataset import _check_download_size
     # A wrong historical checksum is ignored; size checking remains.
-    _verify_download(pdf, SimpleNamespace(size=pdf.stat().st_size,lfs={"sha256":"wrong"}),"fixture")
+    _check_download_size(pdf, SimpleNamespace(size=pdf.stat().st_size,lfs={"sha256":"wrong"}),"fixture")
     with pytest.raises(RagError, match="size mismatch"):
-        _verify_download(pdf, SimpleNamespace(size=pdf.stat().st_size+1),"fixture")
+        _check_download_size(pdf, SimpleNamespace(size=pdf.stat().st_size+1),"fixture")

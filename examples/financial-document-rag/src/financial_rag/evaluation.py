@@ -8,7 +8,7 @@ from pathlib import Path
 from statistics import mean
 
 from .api import ModelAPI, fatal_provider_error, usage_summary
-from .common import RagError, canonical, digest, read_jsonl, sha256, write_json, write_jsonl
+from .common import RagError, canonical, digest, read_jsonl, write_json, write_jsonl
 from .config import Config
 from .storage import Store
 
@@ -154,7 +154,6 @@ def evaluate(config: Config, store: Store, run_id: str) -> dict:
     meta = {
         "run_id": run_id,
         "records_digest": digest(records),
-        "scored_sha256": sha256(out / "scored.jsonl"),
         "judge": config.models.judge.identity(),
         "rows": len(scored),
         "synthetic": run["synthetic"],
@@ -315,7 +314,7 @@ def report(config: Config, store: Store, run_id: str) -> dict:
             )
     lines += [
         "",
-        "Configuration, dataset checksums, exact index IDs and implementation fingerprint: [manifest.json](manifest.json).",
+        "Configuration, dataset version and exact index IDs: [manifest.json](manifest.json).",
         "[Per-question results](scored.jsonl) · [Summary](summary.csv) · [Differences](deltas.csv)",
         "",
     ]

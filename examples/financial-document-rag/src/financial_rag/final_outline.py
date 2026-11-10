@@ -4,7 +4,7 @@ import argparse
 from collections import Counter
 from pathlib import Path
 
-from .common import RagError, digest, read_json, sha256, write_json
+from .common import RagError, digest, read_json, write_json
 from .storage import Store
 
 HEADINGS = {"title", "section_header"}
@@ -84,7 +84,7 @@ def packets(root, output, size=100):
                 name = f"packet-{start // size + 1:03d}.txt"
                 (dest / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
                 entries.append(
-                    {"name": name, "sha256": sha256(dest / name), "refs": [n["ref"] for n in subset]}
+                    {"name": name, "refs": [n["ref"] for n in subset]}
                 )
             packet_manifest = {
                 **{k: v for k, v in data.items() if k != "headings"},

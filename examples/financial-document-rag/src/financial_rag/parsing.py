@@ -10,14 +10,10 @@ from .storage import Store
 
 
 def parse_signature(config: Config, kind: str) -> dict:
-    weights = Path(config.parsing.artifacts_path) / "manifest.json" if config.parsing.artifacts_path else None
     result = {
         "parser": kind,
         "contract": "native-sort-v1" if kind == "flat" else "docling-standard-pdf-v1",
         "options": config.parsing.semantic_options() if kind == "structured" else {"sort": True},
-        "weights_manifest_sha256": sha256(weights)
-        if kind == "structured" and weights and weights.exists()
-        else None,
         "versions": versions("pymupdf")
         if kind == "flat"
         else versions("docling-slim", "docling-core", "docling-parse", "docling-ibm-models"),
@@ -32,7 +28,7 @@ def parse_signature(config: Config, kind: str) -> dict:
         root = Path(config.parsing.artifacts_path) / "RapidOcr" if config.parsing.artifacts_path else None
         result["ocr_weights"] = (
             [
-                {"path": p.relative_to(root).as_posix(), "sha256": sha256(p)}
+                {"path": p.relative_to(root).as_posix()}
                 for p in sorted(root.rglob("*"))
                 if p.is_file()
             ]
@@ -419,7 +415,7 @@ def parse_sample(
             not cached["failed"]
             and all(
                 (output / name).is_file()
-                for name, checksum in cached.get("files", {}).items()
+                for name in cached.get("files", ())
             )
             and cached.get("files")
         ):
@@ -472,8 +468,6 @@ def parse_sample(
             }
             for pipeline in converter.initialized_pipelines.values()
         ]
-    report["files"] = {
-        name: sha256(output / name) for name in ("document.json", "nodes.json", "stages.json", "quality.json")
-    }
+    report["files"] = ["document.json", "nodes.json", "stages.json", "quality.json"]
     write_json(output / "report.json", report)
     return report

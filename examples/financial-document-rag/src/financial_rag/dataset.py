@@ -133,11 +133,9 @@ def download(config: Config, store: Store) -> dict:
                 path.unlink()
 
 
-def _verify_download(path: Path, remote, label: str) -> str:
-    checksum = sha256(path)
+def _check_download_size(path: Path, remote, label: str) -> None:
     if remote.size is not None and remote.size != path.stat().st_size:
         raise RagError(f"Download size mismatch: {label}; remove only this cached file and download again.")
-    return checksum
 
 
 def _download(config: Config, store: Store) -> dict:
@@ -169,9 +167,9 @@ def _download(config: Config, store: Store) -> dict:
     except Exception as e:
         raise RagError(f"Dataset download failed ({type(e).__name__}); rerun to resume the HF cache.") from e
 
-    # Verify cached downloads against the pinned upstream objects too, not only against a new local manifest.
+    # Keep the pinned file inventory and size checks; content IDs belong to documents.
     upstream = {r.rfilename: r for r in repo_info.siblings}
-    checksums = {}
+    downloaded_files = {}
     for path in sorted(dest.rglob("*")):
         if not path.is_file() or ".cache" in path.parts:
             continue
@@ -180,7 +178,8 @@ def _download(config: Config, store: Store) -> dict:
             continue
         if rel not in upstream:
             raise RagError(f"Unexpected file in the pinned dataset directory: {rel}")
-        checksums[rel] = _verify_download(path, upstream[rel], rel)
+        _check_download_size(path, upstream[rel], rel)
+        downloaded_files[rel] = {"bytes": path.stat().st_size}
 
     def table(folder: str, columns=None) -> list[dict]:
         files = sorted((dest / folder).glob("*.parquet"))
@@ -220,7 +219,7 @@ def _download(config: Config, store: Store) -> dict:
         raise RagError("Duplicate document IDs in dataset metadata.")
     if sum(d["pages"] for d in documents) != config.dataset.expected_pages:
         raise RagError("Unexpected total page count.")
-    annotation_checksums = {}
+    annotation_sources = []
     english, english_qrels = [], []
     # The upstream annotation files are inspected in a temporary local directory.
     # Only English rows leave this scope; no translated QA/qrels are persisted.
@@ -247,7 +246,8 @@ def _download(config: Config, store: Store) -> dict:
                     raise RagError(
                         f"English annotation download failed ({type(e).__name__}); rerun download."
                     ) from e
-                annotation_checksums[name] = _verify_download(downloaded, upstream[name], name)
+                _check_download_size(downloaded, upstream[name], name)
+                annotation_sources.append(name)
                 rows = pq.read_table(downloaded).to_pylist()
                 if folder == "queries":
                     english.extend(r for r in rows if str(r["language"]).strip().lower() == "english")
@@ -266,14 +266,14 @@ def _download(config: Config, store: Store) -> dict:
         "synthetic": False,
         "language": "english",
         "annotation_policy": "english_only_transient_upstream_downloads",
-        "annotation_source_sha256": annotation_checksums,
+        "annotation_sources": annotation_sources,
         "documents": documents,
         "counts": {
             "documents": len(documents),
             "pages": sum(d["pages"] for d in documents),
             "queries": len(runtime),
         },
-        "files": checksums,
+        "files": downloaded_files,
     }
     manifest["id"] = manifest_identity(manifest)
     prepared = config.work_dir / "datasets" / manifest["id"]
@@ -281,8 +281,6 @@ def _download(config: Config, store: Store) -> dict:
     write_jsonl(prepared / "labels.jsonl", labels)
     write_json(prepared / "mapping.json", audit)
     manifest["prepared_dir"] = str(prepared)
-    manifest["queries_sha256"] = sha256(prepared / "queries.jsonl")
-    manifest["labels_sha256"] = sha256(prepared / "labels.jsonl")
     write_json(prepared / "manifest.json", store.portable(manifest))
     for doc in documents:
         store.put("documents", doc["id"], doc)
@@ -327,7 +325,7 @@ def dataset(store: Store, verify_pdfs: bool = False, verify_queries: bool = Fals
             )
         queries = Path(manifest["prepared_dir"]) / "queries.jsonl"
         if not queries.is_file():
-            raise RagError("Prepared queries.jsonl has changed; prepare a new dataset version.")
+            raise RagError("Prepared queries.jsonl is missing; prepare a new dataset version.")
     if verify_pdfs:
         for doc in manifest["documents"]:
             verify_document(doc)
@@ -337,7 +335,7 @@ def dataset(store: Store, verify_pdfs: bool = False, verify_queries: bool = Fals
 def verify_document(doc: dict):
     pdf = Path(doc["pdf_path"])
     if not pdf.is_file():
-        raise RagError(f"Raw PDF missing or modified: {doc['filename']}; source version cannot be verified.")
+        raise RagError(f"Raw PDF missing: {doc['filename']}; restore the source file before reading.")
 
 
 def inspect(config: Config, store: Store, tables: bool = False) -> dict:

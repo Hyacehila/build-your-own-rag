@@ -13,7 +13,7 @@ import numpy as np
 from .api import ModelAPI, embedding_key, usage_summary
 from .chunking import current_index
 from .cleaning import restore_release
-from .common import RagError, canonical, digest, sha256, write_json
+from .common import RagError, canonical, digest, write_json
 from .config import load_config
 from .dataset import dataset
 from .facts import BODY_KINDS
@@ -95,7 +95,7 @@ def reuse_embeddings(config, store, source_database):
                     store.db.execute("INSERT INTO embeddings VALUES (?,?,?)", (key, dimensions, blob))
                     copied += 1
     result = {
-        "source_database_sha256": sha256(source_database),
+        "source_database": str(source_database),
         "model": role.identity(),
         "wanted_unique_inputs": len(wanted),
         "copied": copied,
@@ -295,7 +295,6 @@ def export(config, store, destination):
         target.execute("VACUUM")
     result = {
         "database": destination.name,
-        "sha256": sha256(destination),
         "bytes": destination.stat().st_size,
         "report": report,
         "secret_scan": scan,

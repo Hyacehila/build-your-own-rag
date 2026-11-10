@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .common import RagError, read_json, write_json
 from .config import Config
-from .dataset import _verify_download, hub_local_dir
+from .dataset import _check_download_size, hub_local_dir
 
 LAYOUT_REVISION = "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8"
 TABLE_REVISION = "fc0f2d45e2218ea24bce5045f58a389aed16dc23"
@@ -57,12 +57,11 @@ def download_models(config: Config) -> dict:
                         repo, name, revision=revision, local_dir=hub_local_dir(root / repo.replace("/", "--"))
                     )
                 )
-                checksum = _verify_download(downloaded, upstream[name], name)
+                _check_download_size(downloaded, upstream[name], name)
                 file = root / repo.replace("/", "--") / name
                 manifest["files"].append(
                     {
                         "path": file.relative_to(root).as_posix(),
-                        "sha256": checksum,
                         "bytes": file.stat().st_size,
                     }
                 )

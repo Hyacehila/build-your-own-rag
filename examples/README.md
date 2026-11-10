@@ -8,7 +8,7 @@
 
 ## 已发布示例
 
-- [结构化文档事实层](structured-document-facts/README.md)：从原创 Markdown 转成 DoclingDocument，保留结构并演示版本绑定的节点回读。
+- [金融文档 RAG](financial-document-rag/README.md)：[教学路线](financial-document-rag/TEACHING.md)从三页原创虚构报告出发，演示文档对象、平面与结构化切片、原文节点回读，并提供各章节对应的实现位置。
 
 ## 金融文档实验
 

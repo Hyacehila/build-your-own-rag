@@ -133,8 +133,6 @@ def create_fixture(config: Config, store: Store, structured_snapshot: bool = Fal
         "documents": [doc],
         "counts": {"documents": 1, "pages": 3, "queries": 3},
         "prepared_dir": str(root),
-        "queries_sha256": sha256(root / "queries.jsonl"),
-        "labels_sha256": sha256(root / "labels.jsonl"),
     }
     write_json(root / "manifest.json", manifest)
     store.set_meta("dataset", manifest)

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from financial_rag import cli, common
+from financial_rag import cli
 from financial_rag.config import Config, Role, Tokens
 from financial_rag.storage import Store
 
@@ -69,20 +69,3 @@ def test_invalid_run_limit_does_not_open_database(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as failure:
         cli.main(["--config", str(tmp_path / "absent.toml"), "run", "--run", "bad", "--limit", "0"])
     assert failure.value.code == 2
-
-
-def test_run_fingerprint_covers_nested_modules_with_same_filename(tmp_path, monkeypatch):
-    package = tmp_path / "project/src/financial_rag"
-    package.mkdir(parents=True)
-    monkeypatch.setattr(common, "__file__", str(package / "common.py"))
-    first = package / "commands/diagnostics.py"
-    second = package / "diagnostics/diagnostics.py"
-    for path in (first, second):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("value = 1\n", encoding="utf-8")
-    original = common.implementation()
-    first.write_text("value = 2\n", encoding="utf-8")
-    changed = common.implementation()
-    assert changed != original
-    second.write_text("value = 3\n", encoding="utf-8")
-    assert common.implementation() != changed

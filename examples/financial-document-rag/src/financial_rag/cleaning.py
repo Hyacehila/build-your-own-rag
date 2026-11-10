@@ -382,7 +382,7 @@ def export_release(output, destination):
             store.db.backup(target)
             target.execute("PRAGMA journal_mode=DELETE")
             target.execute("VACUUM")
-    return {"database": str(destination), "sha256": sha256(destination), "bytes": destination.stat().st_size}
+    return {"database": str(destination), "bytes": destination.stat().st_size}
 
 
 def check_release(output, config, chunks=True):
@@ -410,11 +410,7 @@ def check_release(output, config, chunks=True):
             parsed = store.get("parses", row["parse_id"])
             original = store.get("parses", row["raw_parse_id"])
             doc = store.get("documents", parsed["doc_version"])
-            for path, checksum in [
-                (doc["pdf_path"], doc["sha256"]),
-                (parsed["snapshot"], parsed["snapshot_sha256"]),
-                (original["snapshot"], original["snapshot_sha256"]),
-            ]:
+            for path in (doc["pdf_path"], parsed["snapshot"], original["snapshot"]):
                 if not Path(path).is_file():
                     raise RagError("Fact source/snapshot file missing.")
             nodes = store.nodes(parsed["id"])

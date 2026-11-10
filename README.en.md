@@ -54,7 +54,7 @@ The main sequence starts with data cleaning and gradually expands to retrieval, 
 
 ## Examples and data
 
-- [Complete examples](examples/README.md): the [structured document facts example](examples/structured-document-facts/README.md) and [financial document RAG experiment](examples/financial-document-rag/README.md) are available. The financial example has completed a five-group, 296-question evaluation: A/B/C are newly generated, while pre-D/D reuse an earlier run. Code and offline tests are included; source databases and historical run materials are managed separately (project guide in Chinese).
+- [Complete examples](examples/README.md): the [financial document RAG example](examples/financial-document-rag/README.md) connects the early chapters. Its [teaching route](examples/financial-document-rag/TEACHING.md) includes an original fictional report, reference document and local entrypoint. The real financial experiment has completed a five-group, 296-question evaluation: A/B/C are newly generated, while pre-D/D reuse an earlier run. Source databases and historical run materials are managed separately (project guide in Chinese).
 - [Datasets](datasets/README.md): no standalone datasets published yet; the example includes an original fictional teaching fixture.
 
 ## Personal reflections

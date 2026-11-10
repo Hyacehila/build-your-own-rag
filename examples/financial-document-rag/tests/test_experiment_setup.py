@@ -385,8 +385,8 @@ def test_full_abc_reuse_delivery_preserves_original_records_and_never_rejudges(p
 def test_invalid_reuse_structure_prevents_execution(prepared_inputs,monkeypatch):
     setup,_,_,fake,_,_,_=prepared_inputs
     path=new_plan(prepared_inputs,arms=['A','B','C'])
-    p=read_json(path);p['reuse_material']={'path':str(path.parent),'manifest_sha256':'not-the-file-hash'}
+    p=read_json(path);p['reuse_material']={'path':str(path.parent)}
     (path.parent/'manifest.json').write_text('{}');write_json(path,p)
     before=len(fake.requests)
-    with pytest.raises(RagError,match='reuse manifest'):setup.check_plan(path)
+    with pytest.raises(RagError,match='Missing D/pre-D reuse material'):setup.check_plan(path)
     assert len(fake.requests)==before

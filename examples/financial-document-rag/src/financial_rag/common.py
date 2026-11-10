@@ -20,22 +20,12 @@ def digest(value: Any) -> str:
 
 
 def sha256(path: Path) -> str:
+    """Content identity for source/resource keys; never validates a saved file."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1024 * 1024), b""):
             h.update(block)
     return h.hexdigest()
-
-
-def implementation(*modules: str) -> str:
-    """Fingerprint dependencies; costly parsing need not depend on report/API code."""
-    here = Path(__file__).parent
-    paths = [here / name for name in modules] if modules else list(here.rglob("*.py"))
-    sources = {p.relative_to(here).as_posix(): sha256(p) for p in sorted(paths)}
-    lock = here.parents[1] / "uv.lock"
-    if lock.exists():
-        sources["uv.lock"] = sha256(lock)
-    return digest(sources)
 
 
 def versions(*packages: str) -> dict:

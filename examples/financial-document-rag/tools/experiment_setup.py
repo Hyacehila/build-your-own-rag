@@ -233,7 +233,6 @@ def prepare(config_path: Path, cohort: Path, selection: Path, output: Path, run_
         id=digest({'source': manifest['id'], 'queries': sha256(prepared / 'queries.jsonl'),
                    'labels': sha256(prepared / 'labels.jsonl')}),
         document_only=False, prepared_dir=str(prepared), repo=cfg.dataset.repo, revision=cfg.dataset.revision,
-        queries_sha256=sha256(prepared / 'queries.jsonl'), labels_sha256=sha256(prepared / 'labels.jsonl'),
         annotation_policy='Fixed cohort; labels are unchanged and consumed only by evaluation.',
     )
     manifest['counts']['queries'] = cfg.dataset.expected_english_queries

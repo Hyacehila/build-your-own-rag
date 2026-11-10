@@ -96,7 +96,7 @@ def build_delivery(plan_path):
     if manual.is_file():
         rendered=rendered.replace('</html>',manual.read_text(encoding='utf-8')+'</html>')
     (output/'REPORT.zh-CN.html').write_text(rendered,encoding='utf-8')
-    write_json(output/'artifacts.json',{p.name:{'bytes':p.stat().st_size} for p in output.iterdir() if p.is_file() and p.name not in {'artifacts.json','SHA256SUMS.json'}})
+    write_json(output/'artifacts.json',{p.name:{'bytes':p.stat().st_size} for p in output.iterdir() if p.is_file() and p.name != 'artifacts.json'})
     write_json(root.parents[1]/'current-delivery.json',{'plan':str(plan_path.resolve()),'report':str((output/'REPORT.zh-CN.html').resolve()),
         'source_runs':{a:v['run_id'] for a,v in stats.items()},'new_records':len(current),'reused_records':len(retained),'hash_verification':False})
     return result

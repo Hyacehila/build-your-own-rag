@@ -397,7 +397,7 @@ def build_review(plan_path: Path, output: Path | None = None) -> dict:
         for row in scores:writer.writerow({'arm':row['arm'],'query_id':row['query_id'],'correct':row['judge']['correct'],
                                          'answer':row.get('answer'),'attempts':row['attempt'],'original_tokens_estimated':row.get('text_tokens_read',0)})
     render_report(result,output)
-    write_json(output/'artifacts.json',{p.name:{'bytes':p.stat().st_size} for p in output.iterdir() if p.is_file() and p.name not in {'artifacts.json','SHA256SUMS.json'}})
+    write_json(output/'artifacts.json',{p.name:{'bytes':p.stat().st_size} for p in output.iterdir() if p.is_file() and p.name != 'artifacts.json'})
     return result
 
 

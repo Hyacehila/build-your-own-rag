@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .api import APIError, ModelAPI, fatal_provider_error, usage_summary
 from .chunking import current_index
-from .common import RagError, canonical, digest, implementation, read_jsonl, write_json, write_jsonl
+from .common import RagError, canonical, digest, read_jsonl, write_json, write_jsonl
 from .config import ARMS
 from .dataset import dataset
 from .retrieval import Search, page_ranking
@@ -230,7 +230,7 @@ def run(config, store, run_id, arms, limit=None, retry_errors=False, query_ids=N
     if 'C' in identity_arms:kinds.add('structured')
     indices={k:current_index(config,source,k) for k in sorted(kinds)}
     settings=config.portable_settings();settings.pop('pricing');settings['models'].pop('judge')
-    rm={'id':run_id,'dataset':store.portable(manifest),'config':settings,'implementation':implementation(),
+    rm={'id':run_id,'dataset':store.portable(manifest),'config':settings,
         'arms':identity_arms,'indices':{k:v['id'] for k,v in indices.items()},'queries':queries,'synthetic':manifest['synthetic'],
         'contract':config.query.contract,'full_benchmark':len(queries)==296 and set(identity_arms)==set(ARMS)}
     old=store.db.execute('SELECT payload FROM runs WHERE id=?',(run_id,)).fetchone()

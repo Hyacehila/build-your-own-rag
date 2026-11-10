@@ -46,7 +46,7 @@ Profile 通过 doc_id 关联文档；pdf_sha256、raw_snapshot_sha256 保留为�
 
 ## 当前回执适配
 
-final_outline 核对 contract、doc_id、parse_id，并检查实际标题集合和关系；snapshot_sha256、outline_sha256 保留为历史来源字段，不作为验收门槛。reviewer 与 final_tree_reviewed 标记真实审阅。reviewed_heading_refs 覆盖最终标题各一次，expected_relations 记录有原页证据的父节点或父标题关系；contents_pages_viewed、representative_pages_viewed、suspicious_pages_viewed 记录实际查看页，无目录时提供 no_contents_reason。
+final_outline 核对 contract、doc_id、parse_id，并检查实际标题集合和关系。reviewer 与 final_tree_reviewed 标记真实审阅。reviewed_heading_refs 覆盖最终标题各一次，expected_relations 记录有原页证据的父节点或父标题关系；contents_pages_viewed、representative_pages_viewed、suspicious_pages_viewed 记录实际查看页，无目录时提供 no_contents_reason。
 
 confirmed_wrong_parent_remaining 在通过时为空；uncertain_exceptions 明确未决原因。包文件清单、分支复用依据和成本可另存，但现有校验器未全部强制检查。默认标题包 100 项，可按长度调整。
 
