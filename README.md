@@ -4,7 +4,7 @@
 
 Build Your Own RAG 是一个包含个人偏好的 RAG 教程。它面向有编程基础的读者，主要采用 Python 原生开发，从真实场景出发，讨论解决问题时的技术选择与权衡。我希望在回答“怎么做”的同时，也讲清楚“为什么这样做”。
 
-[项目理念](#项目理念) · [适合谁阅读](#适合谁阅读) · [整体内容](#整体内容) · [主线教程](#主线教程目录) · [特别加更](#特别加更目录) · [示例与数据](#示例与数据) · [碎碎念](#碎碎念) · [参与贡献](#参与贡献) · [许可](#许可)
+[项目理念](#项目理念) · [适合谁阅读](#适合谁阅读) · [整体内容](#整体内容) · [主线教程](#主线教程目录) · [特别加更](#特别加更目录) · [示例](#示例目录) · [碎碎念](#碎碎念) · [参与贡献](#参与贡献) · [许可](#许可)
 
 ## 项目理念
 
@@ -12,13 +12,11 @@ Build Your Own RAG 是一个包含个人偏好的 RAG 教程。它面向有编�
 
 这是一个以项目和问题为导向的教程，技术服务于问题本身，每项技术选择都会放到具体场景中解释，必要时也会对比其他方案。我的个人习惯仍然会影响部分选型，读者可以参考这些选择，再根据自己的需求作出判断。
 
-本教程不会逐行解释代码，也不会穷举运行步骤和可能遇到的报错。我认为，读者已经可以借助编程智能体（Coding Agent）处理这些实现细节。我会写清楚要做什么、解释原理，并在第六章末尾提供完整示例。读者需要自己动手实现和验证，理解每一步的作用。
+本教程不会逐行解释代码，也不会穷举运行步骤和可能遇到的报错。我认为，读者已经可以借助编程智能体（Coding Agent）处理这些实现细节。我会写清楚要做什么、解释原理，并提供相关的示例。读者需要自己动手实现和验证，理解每一步的作用。
 
 这个项目会尽量少依赖现成的 RAG 框架或系统，例如 [LangChain](https://github.com/langchain-ai/langchain)、[LlamaIndex](https://github.com/run-llama/llama_index)、[RAGFlow](https://github.com/infiniflow/ragflow)、[LightRAG](https://github.com/HKUDS/LightRAG) 和 [RAG-Anything](https://github.com/HKUDS/RAG-Anything)。我也不是要开发一个新的 RAG 框架，而是通过示例展示如何针对具体问题实现各个环节。示例代码主要采用 Python 原生开发，并引入我认为必要的依赖。在我看来，RAG 的基本思路并不复杂，亲手实现各个环节也有助于将来在生产环境中调整和维护系统。有了 Coding Agent，在引入一个可能变化频繁的框架和自己多写一些代码之间，我会更倾向于后者。
 
-教程以实践为主，不会从 RAG 的历史讲起，也不会展开模型训练原理。如果你希望先系统入门，或参考现有代码，可以看看 [All-in-RAG](https://github.com/datawhalechina/all-in-rag) 和 [RAG from Scratch](https://github.com/langchain-ai/rag-from-scratch)。想进一步了解不同的 RAG 技巧，可以看看按专题组织的 [RAG Techniques](https://github.com/NirDiamant/RAG_Techniques)。企业场景还会涉及权限管理、数据源连接等问题，对这些话题感兴趣，可以参考 [Azure Search OpenAI Demo](https://github.com/Azure-Samples/azure-search-openai-demo) 和 [Onyx](https://github.com/onyx-dot-app/onyx)。
-
-如果你想直接使用端到端框架快速搭建 Demo，[RAG-Anything](https://github.com/HKUDS/RAG-Anything) 和 [LightRAG](https://github.com/HKUDS/LightRAG) 都是不错的选择。
+教程以实践为主，不会从 RAG 的历史讲起，也不会展开模型训练原理。如果你希望先系统入门，或参考现有代码，可以看看 [All-in-RAG](https://github.com/datawhalechina/all-in-rag) 和 [RAG from Scratch](https://github.com/langchain-ai/rag-from-scratch)。想进一步了解不同的 RAG 技巧，可以看看按专题组织的 [RAG Techniques](https://github.com/NirDiamant/RAG_Techniques)。企业场景还会涉及权限管理、数据源连接等问题，对这些话题感兴趣，可以参考 [Azure Search OpenAI Demo](https://github.com/Azure-Samples/azure-search-openai-demo) 和 [Onyx](https://github.com/onyx-dot-app/onyx)。如果你想直接使用端到端框架快速搭建 Demo，[RAG-Anything](https://github.com/HKUDS/RAG-Anything) 和 [LightRAG](https://github.com/HKUDS/LightRAG) 都是不错的选择。
 
 **Build your own RAG. Do not just copy it.**
 
@@ -49,10 +47,10 @@ Build Your Own RAG 是一个包含个人偏好的 RAG 教程。它面向有编�
 
 - [ex001 · Embedding Atlas：用可视化理解 RAG 的嵌入空间](tutorials/extra/ex001-embedding-atlas.md)
 
-## 示例与数据
+## 示例目录
 
-- 主线前六章使用 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en) 的金融财报。作者从原始题集中筛除部分有问题的题目，固定保留 296 题；金融实验的全量结果使用这 296 题，原文库和历史运行材料另行管理。
-- 示例使用开源数据集，提供来源和下载链接；仓库不单独发布数据集。后续章节可以根据主题选用其他数据。
+示例围绕真实问题提供完整实现，供读者配合教程阅读、运行和改写。每个示例项目都使用了独立的虚拟环境，使用 UV 管理，注意阅读对应仓库文档。
+- [金融长文档 RAG](examples/financial-document-rag/README.md)：对应主线前六章，以 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en) 的金融财报为数据，展示从文档表示、解析、切片到检索、回读与存储的实现。
 
 ## 碎碎念
 
