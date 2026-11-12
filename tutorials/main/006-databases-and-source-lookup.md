@@ -129,7 +129,7 @@ PostgreSQL 提供全文检索（Full Text Search，FTS），SQLite 也可以通�
 
 ### 四张表的基本形状
 
-下面以 SQLite 为例说明关系。这是为讲解设计的表结构；金融实验的实际字段与标识组织有所不同，不能把下面的 SQL 直接当成实验数据库的查询。
+下面以 SQLite 为例，用四张表说明文档、节点和检索资料之间的关系。
 
 ```sql
 PRAGMA foreign_keys = ON;
@@ -372,8 +372,8 @@ JSONB 减少的是解析 JSON 文本的开销，[节点表](#完整文档原文�
 
 ---
 
-## 完整金融 Example
+## 完整示例
 
-前六章使用的财报处理、切片、检索、回读与五组实验实现，集中在[金融长文档 RAG Example](../../examples/financial-document-rag/README.md) 中。数据来源、配置和代码说明见该项目的 README；历史实验材料另行管理。
+前六章使用的[金融长文档 RAG 示例](../../examples/financial-document-rag/README.md)包含财报解析、切片、检索和原文回读。项目代码、数据来源及运行说明见示例目录。
 
 本章原创正文采用 [CC BY 4.0](../../LICENSE-DOCS)。
