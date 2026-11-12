@@ -293,7 +293,7 @@ def current_index(config: Config, store: Store, kind: str) -> dict:
             for n in store.nodes(pid)
             if n["kind"] in ("table", "picture")
         ]
-        from .summary_windows import body_windows, summary_key, CONTRACT
+        from .summary_windows import CONTRACT, body_windows, summary_key
         if index.get("summary_contract") != CONTRACT:
             raise RagError("Legacy C index rejected: build the five-block summary index")
         base = current_index(config, store, "structured")

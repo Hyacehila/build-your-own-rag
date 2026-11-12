@@ -10,17 +10,30 @@
 
 [主线前六章](../../README.md#主线教程目录)使用本例的真实财报讨论文档表示、解析、切片、检索、回读和存储。本目录提供完整实现及实验说明。
 
+| 教程 | 对应实现 |
+| --- | --- |
+| 001 · 事实层 | [facts.py](src/financial_rag/facts.py) 中的文档关系与事实投影 |
+| 002 · DoclingDocument | [parsing.py](src/financial_rag/parsing.py) 中的结构化解析与节点提取 |
+| 003 · OCR 与解析 | [parsing.py](src/financial_rag/parsing.py) 的解析配置，以及 [cleaning_profiles.py](src/financial_rag/cleaning_profiles.py) 的清洗处理 |
+| 004 · 切片与增强 | [chunking.py](src/financial_rag/chunking.py) 与 [enrichment.py](src/financial_rag/enrichment.py) |
+| 005 · 检索与回答 | [retrieval.py](src/financial_rag/retrieval.py)、[sources.py](src/financial_rag/sources.py) 与 [agent_reading.py](src/financial_rag/agent_reading.py) |
+| 006 · 存储与回查 | [storage.py](src/financial_rag/storage.py) 与 [readback.py](src/financial_rag/readback.py) |
+
+这些链接指向当前代码；历史实验当时的完整代码环境和运行材料不随仓库发布，阅读当前实现不能替代对历史运行的复核。
+
 ## 数据集来源
 
 真实金融实验使用 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en/tree/main) 数据集。作者从原始题集中筛除部分有问题的题目，固定保留 296 题，本例的全量实验均使用这组题目。上游页面提供下载入口；数据集标注与元数据采用 CC BY 4.0，原始财报及解析文字遵循各自来源的使用条件。数据源与固定版本见 [config.toml](config.toml)。
 
 筛除的 13 道题在上游数据中的 `query_id` 分别为：`0`、`1`、`54`、`56`、`80`、`81`、`82`、`90`、`133`、`166`、`180`、`192`、`257`。这些编号是题目的 ID，不是文件中的行号；其余 296 题保留原题和标注。
 
+已知第 `1755` 题的参考答案写作 “Valuation Committee Group”，而财报物理第 184 页写作 “Valuation Control Group”。本例保留上游参考答案和历史评分，复核该题时可对照原文。
+
 ## 首次使用
 
 本仓库提供代码、配置、测试和清洗 profiles；`.local` 中的真实原文库、题集、运行记录与历史报告不随 Git 提供。复核历史成绩需要另行取得固定题集、清洗决策、运行库和复用材料，单凭下载上游数据集无法获得完整的复核材料。
 
-固定版本的上游数据仍包含上述已剔除的题目。现有下载准备流程要求上游题数直接等于配置的 296 题，不会按上述清单自动筛选，因此直接运行会因题数不符而失败。
+`download` 使用固定版本的上游数据时，会按上述清单筛选并生成 296 题及其原始标注，同时生成可供实验准备器使用的题集清单。更换数据源或版本时，需按新数据显式设置 `dataset.excluded_query_ids` 和预期题数；默认的 13 个排除 ID 只适用于本例固定的数据源与版本。
 
 在本目录安装锁定环境并运行离线检查：
 

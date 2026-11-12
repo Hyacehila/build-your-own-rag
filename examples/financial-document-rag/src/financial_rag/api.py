@@ -137,7 +137,8 @@ class ModelAPI:
                                 'input_tokens_at_least': r'at least\s+(\d+)\s+input tokens',
                             }.items():
                                 match = re.search(pattern, message, re.I)
-                                if match: diagnostics[name] = int(match[1])
+                                if match:
+                                    diagnostics[name] = int(match[1])
                 except (ValueError, AttributeError):
                     pass
                 request_id = response.headers.get("x-request-id", "")
@@ -307,7 +308,8 @@ class ModelAPI:
         current = list(messages)
         for attempt in range(max(role.json_retries, role.retries) + 1):
             try:
-                if prepare_request: current = prepare_request(current, tools)
+                if prepare_request:
+                    current = prepare_request(current, tools)
                 message = self.chat(
                     role_name,
                     current,
@@ -348,7 +350,8 @@ class ModelAPI:
                         "matching the required schema, or valid tool arguments. Use only supplied "
                         "evidence IDs; do not invent facts. No markdown fences."
                     )
-                    if repair_instruction: instruction = repair_instruction
+                    if repair_instruction:
+                        instruction = repair_instruction
                     current = [
                         *messages,
                         {

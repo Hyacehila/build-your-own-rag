@@ -5,17 +5,17 @@ import re
 import time
 from pathlib import Path
 
+from .agent_reading import parse_final
 from .api import APIError, ModelAPI, fatal_provider_error, usage_summary
 from .chunking import current_index
 from .common import RagError, canonical, digest, read_jsonl, write_json, write_jsonl
 from .config import ARMS
+from .context_capacity import Capacity
 from .dataset import dataset
+from .evidence_packet import OriginalCatalog
 from .retrieval import Search, page_ranking
 from .sources import Reader, validate_citations
-from .evidence_packet import OriginalCatalog
-from .context_capacity import Capacity
 from .storage import Store
-from .agent_reading import parse_final
 
 SYSTEM = """Answer financial document questions using only supplied document evidence.
 Write the answer in English.
@@ -40,7 +40,8 @@ def parse_answer(text: str) -> dict:
         if not isinstance(data.get("citations"), list):
             raise ValueError("citations must be a list")
         result = {"answer": data["answer"], "citations": data["citations"], "format_error": None}
-        if 'coverage' in data: result['coverage'] = data['coverage']
+        if "coverage" in data:
+            result["coverage"] = data["coverage"]
         return result
     except (ValueError, TypeError) as e:
         return {"answer": text, "citations": [], "format_error": f"Expected answer JSON: {e}"}
@@ -56,15 +57,21 @@ def validate_coverage(answer, requested_items, evidence):
         'evidence_ids':{'type':'array','items':{'type':'string'},'uniqueItems':True},
         'scope_check':{'type':'string','minLength':1},'gaps':{'type':'string'}},
         'required':['item_id','status','evidence_ids','scope_check','gaps'],'additionalProperties':False}}
-    try: jsonschema.validate(answer.get('coverage'),schema)
-    except jsonschema.ValidationError as e: raise ValueError('Invalid source coverage structure: '+e.message) from e
-    entries=answer['coverage'];expected={r['item_id'] for r in requested_items}
+    try:
+        jsonschema.validate(answer.get("coverage"), schema)
+    except jsonschema.ValidationError as e:
+        raise ValueError("Invalid source coverage structure: " + e.message) from e
+    entries = answer["coverage"]
+    expected = {r["item_id"] for r in requested_items}
     if len(entries)!=len(expected) or {r['item_id'] for r in entries}!=expected:
         raise ValueError('Coverage must include every requested item exactly once')
     for entry in entries:
-        if any(e not in evidence for e in entry['evidence_ids']):raise ValueError('Coverage cites unread evidence')
-        if entry['status']=='supported' and not entry['evidence_ids']:raise ValueError('Supported item needs original evidence')
-        if entry['status']!='supported' and not entry['gaps'].strip():raise ValueError('Incomplete item needs explicit gap')
+        if any(e not in evidence for e in entry["evidence_ids"]):
+            raise ValueError("Coverage cites unread evidence")
+        if entry["status"] == "supported" and not entry["evidence_ids"]:
+            raise ValueError("Supported item needs original evidence")
+        if entry["status"] != "supported" and not entry["gaps"].strip():
+            raise ValueError("Incomplete item needs explicit gap")
 
 
 class QuestionRunner:
@@ -117,7 +124,8 @@ class QuestionRunner:
                     raise ValueError('Return query and requested_items')
                 return
             if m.get('tool_calls'):
-                if not tools: raise ValueError('Tools are closed; return the final answer')
+                if not tools:
+                    raise ValueError("Tools are closed; return the final answer")
                 if self.capacity:
                     # D receives narrow tool errors in its next logical turn instead
                     # of spending physical retries on unsupported modes/arguments.
@@ -129,9 +137,12 @@ class QuestionRunner:
                 schemas = {t['function']['name']: t['function']['parameters'] for t in tools}
                 for tc in m['tool_calls']:
                     fn = tc.get('function', {})
-                    if fn.get('name') not in schemas: raise ValueError('Unknown source tool')
-                    try: jsonschema.validate(json.loads(fn['arguments']), schemas[fn['name']])
-                    except jsonschema.ValidationError as e: raise ValueError('Invalid tool arguments: '+e.message) from e
+                    if fn.get("name") not in schemas:
+                        raise ValueError("Unknown source tool")
+                    try:
+                        jsonschema.validate(json.loads(fn["arguments"]), schemas[fn["name"]])
+                    except jsonschema.ValidationError as e:
+                        raise ValueError("Invalid tool arguments: " + e.message) from e
                 return
             if self.capacity:
                 answer = parse_final(m.get('content'))
@@ -153,9 +164,15 @@ class QuestionRunner:
             try:
                 return self.api.validated_chat('chat', messages, validate, tools=tools, json_output=not tools, **kwargs)
             except APIError as error:
-                if not self.capacity or error.status_code!=400 or error.diagnostics.get('param')!='input_tokens': raise
+                if (
+                    not self.capacity
+                    or error.status_code != 400
+                    or error.diagnostics.get("param") != "input_tokens"
+                ):
+                    raise
                 smaller=self.capacity.after_rejection(messages,tools,self.trace,error.diagnostics)
-                if smaller==messages: raise
+                if smaller == messages:
+                    raise
                 # One changed request within the same logical call. A second capacity
                 # rejection propagates; no identical-request or unbounded retry loop.
                 return self.api.validated_chat('chat',smaller,validate,tools=tools,json_output=not tools,**kwargs)
@@ -173,23 +190,29 @@ class QuestionRunner:
         from .experiments.d import execute
         return execute(self, question, saved, save_initial)
     def run(self, question, arm, *, initial=None, save_initial=None):
-        start = time.perf_counter(); self.reader.question = question['query']
+        start = time.perf_counter()
+        self.reader.question = question["query"]
         record = {'query_id':question['query_id'],'query':question['query'],'arm':arm,
                   'index_id':self.index['id'],'status':'failed','answer':None,'citations':[], 'error':None}
         try:
-            if arm == 'pre-D' and initial is None: raise RagError('D first evidence snapshot is not available yet')
+            if arm == "pre-D" and initial is None:
+                raise RagError("D first evidence snapshot is not available yet")
             from .experiments import scheme
             result = scheme(arm).execute(self, question['query'], initial, save_initial)
-            record.update(result);record['status']='ok'
+            record.update(result)
+            record["status"] = "ok"
         except Exception as e:
-            if fatal_provider_error(e): raise
-            record['error']={'type':type(e).__name__,'message':str(e)}
+            if fatal_provider_error(e):
+                raise
+            record["error"] = {"type": type(e).__name__, "message": str(e)}
         evidence = self.reader.public_evidence()
         if arm=='D' and record['status']=='ok':
             record['coverage_diagnostic']={'present':'coverage' in record,'required':False}
             if 'coverage' in record:
-                try:validate_coverage(record,self.requested_items,self.reader.evidence)
-                except (ValueError,TypeError) as error:record['coverage_diagnostic']['issue']=str(error)
+                try:
+                    validate_coverage(record, self.requested_items, self.reader.evidence)
+                except (ValueError, TypeError) as error:
+                    record["coverage_diagnostic"]["issue"] = str(error)
         record.update(initial_expansion=self.initial_expansion,evidence=evidence, citation_check=validate_citations(record['citations'],evidence),
                       initial_page_ranking=self.initial_ranking,trace=self.trace,
                       fixed_assembly=self.assembly,model_messages=self.model_messages,
@@ -203,20 +226,31 @@ class QuestionRunner:
 
 
 def run(config, store, run_id, arms, limit=None, retry_errors=False, query_ids=None, recovery_round=None, identity_arms=None, snapshot_store=None, snapshot_run_id=None):
-    if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',run_id): raise RagError('Invalid run ID')
-    if not arms or len(set(arms)) != len(arms) or set(arms)-set(ARMS): raise RagError('Invalid experimental arms')
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", run_id):
+        raise RagError("Invalid run ID")
+    if not arms or len(set(arms)) != len(arms) or set(arms) - set(ARMS):
+        raise RagError("Invalid experimental arms")
     identity_arms = identity_arms or arms
-    if set(arms)-set(identity_arms): raise RagError('Arm outside frozen execution scope')
+    if set(arms) - set(identity_arms):
+        raise RagError("Arm outside frozen execution scope")
     if 'pre-D' in arms and 'D' not in arms and not snapshot_run_id:
         raise RagError('pre-D requires D snapshots: specify an existing snapshot run')
-    if 'D' in arms: Capacity(config)  # Fail before spending on any arm if capacity is unattested.
-    config.models.embedding.require('embedding');config.models.chat.require('chat')
+    if "D" in arms:
+        Capacity(config)  # Fail before spending on any arm if capacity is unattested.
+    config.models.embedding.require("embedding")
+    config.models.chat.require("chat")
     manifest=dataset(store,verify_queries=True)
     queries=read_jsonl(Path(manifest['prepared_dir'])/'queries.jsonl')
     if query_ids is not None:
-        if len(set(query_ids))!=len(query_ids) or set(query_ids)-{q['query_id'] for q in queries} or limit is not None: raise RagError('Invalid fixed selection')
+        if (
+            len(set(query_ids)) != len(query_ids)
+            or set(query_ids) - {q["query_id"] for q in queries}
+            or limit is not None
+        ):
+            raise RagError("Invalid fixed selection")
         queries=[q for q in queries if q['query_id'] in set(query_ids)]
-    if limit is not None:queries=queries[:limit]
+    if limit is not None:
+        queries = queries[:limit]
     if config.query.source_work_dir and getattr(store,'source_store',None) is None:
         store.source_store=Store(config.query.source_work_dir,read_only=True)
     source=getattr(store,'source_store',None) or store
@@ -227,9 +261,12 @@ def run(config, store, run_id, arms, limit=None, retry_errors=False, query_ids=N
             if not value or value['packet']['question']!=q['query']:
                 raise RagError('pre-D requires complete matching D first snapshots before any API request')
     kinds=set(ARMS[a] for a in identity_arms)
-    if 'C' in identity_arms:kinds.add('structured')
+    if "C" in identity_arms:
+        kinds.add("structured")
     indices={k:current_index(config,source,k) for k in sorted(kinds)}
-    settings=config.portable_settings();settings.pop('pricing');settings['models'].pop('judge')
+    settings = config.portable_settings()
+    settings.pop("pricing")
+    settings["models"].pop("judge")
     rm={'id':run_id,'dataset':store.portable(manifest),'config':settings,
         'arms':identity_arms,'indices':{k:v['id'] for k,v in indices.items()},'queries':queries,'synthetic':manifest['synthetic'],
         'contract':config.query.contract,'full_benchmark':len(queries)==296 and set(identity_arms)==set(ARMS)}
@@ -239,7 +276,9 @@ def run(config, store, run_id, arms, limit=None, retry_errors=False, query_ids=N
         if {k:v for k,v in prior_run.items() if k!='implementation'} != {k:v for k,v in rm.items() if k!='implementation'}:
             raise RagError('Run options, questions or source identities changed')
         rm=prior_run
-    store.put('runs',run_id,rm);out=config.work_dir/'runs'/run_id;write_json(out/'manifest.json',rm)
+    store.put("runs", run_id, rm)
+    out = config.work_dir / "runs" / run_id
+    write_json(out / "manifest.json", rm)
     previous={(r['arm'],r['query_id']):r for r in store.records(run_id)}
     catalogs={k:OriginalCatalog(source,v) for k,v in indices.items() if k!='enriched'}
     searchers={k:Search(config,source,v,ModelAPI(config,store,'setup:'+run_id)) for k,v in indices.items()}
@@ -247,11 +286,14 @@ def run(config, store, run_id, arms, limit=None, retry_errors=False, query_ids=N
     for arm in order:
         for q in queries:
             prior=previous.get((arm,q['query_id']))
-            if prior and (prior['status']=='ok' or not retry_errors or prior.get('attempt',1)>=4):continue
-            if recovery_round is not None and prior and prior.get('attempt',1) >= recovery_round+1:continue
+            if prior and (prior["status"] == "ok" or not retry_errors or prior.get("attempt", 1) >= 4):
+                continue
+            if recovery_round is not None and prior and prior.get("attempt", 1) >= recovery_round + 1:
+                continue
             attempt=prior.get('attempt',1)+1 if prior else 1
             api=ModelAPI(config,store,f"run:{run_id}:{arm}:{q['query_id']}:{attempt}")
-            kind=ARMS[arm];base='structured' if kind=='enriched' else kind
+            kind = ARMS[arm]
+            base = "structured" if kind == "enriched" else kind
             worker=QuestionRunner(config,source,indices[kind],api,searchers[kind],original_index=indices[base],catalog=catalogs[base],
                                   original_search=searchers.get('structured') if arm=='C' else None)
             key=digest(['initial-evidence-v1',run_id,q['query_id']])
@@ -260,12 +302,18 @@ def run(config, store, run_id, arms, limit=None, retry_errors=False, query_ids=N
                 initial=(snapshot_store or store).cached(digest(['initial-evidence-v1',snapshot_run_id,q['query_id']]))
             def save(packet):
                 old=store.cached(key)
-                if old and old['packet']!=packet['packet']:raise RagError('Cannot overwrite an existing first snapshot')
+                if old and old["packet"] != packet["packet"]:
+                    raise RagError("Cannot overwrite an existing first snapshot")
                 store.cache(key,packet)
             result=worker.run(q,arm,initial=initial,save_initial=save)
             result.update(run_id=run_id,attempt=attempt,synthetic=manifest['synthetic'])
-            if prior:result['previous_attempts']=[*prior.get('previous_attempts',[]),{k:v for k,v in prior.items() if k!='previous_attempts'}]
-            store.save_record(run_id,arm,q['query_id'],result);previous[arm,q['query_id']]=result
+            if prior:
+                result["previous_attempts"] = [
+                    *prior.get("previous_attempts", []),
+                    {k: v for k, v in prior.items() if k != "previous_attempts"},
+                ]
+            store.save_record(run_id, arm, q["query_id"], result)
+            previous[arm, q["query_id"]] = result
             print(f"{run_id} {arm} {q['query_id']}: {result['status']}",flush=True)
         write_jsonl(out/'results.jsonl',store.records(run_id))
     records=store.records(run_id)

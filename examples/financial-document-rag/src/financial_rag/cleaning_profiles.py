@@ -1,6 +1,12 @@
 """Hash-bound, source-preserving document review decisions."""
 
-from docling_core.types.doc import ContentLayer, DocItemLabel, SectionHeaderItem, TextItem, TitleItem
+from docling_core.types.doc import (
+    ContentLayer,
+    DocItemLabel,
+    SectionHeaderItem,
+    TextItem,
+    TitleItem,
+)
 
 from .common import RagError
 from .outline import apply_item_reparents, apply_outline_patches, fingerprint_content, rebuild_scoped
@@ -8,6 +14,12 @@ from .page_exclusions import exclude_pages
 
 
 def apply_profile(document, profile):
+    legacy = document.model_dump(mode="json", include={"furniture"}).get("furniture")
+    if legacy and legacy.get("children"):
+        raise RagError(
+            "Cleaning requires content layers under #/body; this document contains legacy #/furniture items. "
+            "Use a raw parse with content layers under #/body. Historical snapshots remain available for reading."
+        )
     excluded = {x["page_number"] for x in profile["excluded_pages"]}
     if excluded:
         doc, exclusions = exclude_pages(document, excluded)
@@ -35,7 +47,9 @@ def apply_profile(document, profile):
     if not decisions <= raw_refs:
         raise RagError("Profile refers to missing raw text nodes.")
     remaining = {
-        h.self_ref for h in document.texts if isinstance(h, SectionHeaderItem) and h.self_ref in mapping
+        h.self_ref
+        for h in document.texts
+        if isinstance(h, SectionHeaderItem) and h.content_layer == ContentLayer.BODY and h.self_ref in mapping
     }
     if not remaining <= decisions:
         raise RagError("Profile must explicitly classify every retained section heading.")
@@ -73,15 +87,9 @@ def apply_profile(document, profile):
                 continue
             raise RagError("Navigation ref missing from retained facts.")
         item = all_by_ref[mapping[raw_ref]]
-        parent = item.parent.resolve(doc)
-        parent.children = [r for r in parent.children if r.cref != item.self_ref]
-        if raw_ref in profile.get("furniture", []) and item.children:
-            raise RagError("Furniture reclassification must not remove a retained subtree.")
-        item.parent = doc.furniture.get_ref()
         if type(item) is TextItem:
             item.label = DocItemLabel.PAGE_HEADER
         item.content_layer = ContentLayer.FURNITURE
-        doc.furniture.children.append(item.get_ref())
     for promotion in profile.get("promote", []):
         ref = mapping.get(promotion["ref"])
         anchor_ref = mapping.get(promotion["before_ref"])

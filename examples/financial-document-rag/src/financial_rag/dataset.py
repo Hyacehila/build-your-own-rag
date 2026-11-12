@@ -120,17 +120,23 @@ def prepare_annotations(
 
 def download(config: Config, store: Store) -> dict:
     """Publish an English-only dataset; annotation downloads are transient."""
-    dest = (config.work_dir / "raw" / config.dataset.revision).resolve()
-    try:
-        return _download(config, store)
-    finally:
-        # Remove legacy raw annotation downloads too. Only explicitly named files
-        # under this dataset directory are eligible; never recursively delete data.
-        for folder in ("queries", "qrels"):
-            for path in (dest / folder).glob("*.parquet"):
-                if not path.resolve().is_relative_to(dest):
-                    raise RagError("Refusing to clean an annotation path outside the dataset directory.")
-                path.unlink()
+    return _download(config, store)
+
+
+def select_english_queries(queries: list[dict], excluded_ids: list[str], expected: int) -> list[dict]:
+    """Select the configured cohort without changing the original questions or labels."""
+    english = [q for q in queries if str(q["language"]).strip().lower() == "english"]
+    ids = [str(q["query_id"]) for q in english]
+    if len(set(ids)) != len(ids):
+        raise RagError("Duplicate English query IDs in the source dataset.")
+    excluded = set(excluded_ids)
+    missing = excluded - set(ids)
+    if missing:
+        raise RagError(f"Excluded query IDs are missing from the source dataset: {sorted(missing)}")
+    selected = [q for q in english if str(q["query_id"]) not in excluded]
+    if len(selected) != expected:
+        raise RagError(f"Expected {expected} English queries after exclusions, got {len(selected)}.")
+    return selected
 
 
 def _check_download_size(path: Path, remote, label: str) -> None:
@@ -253,6 +259,10 @@ def _download(config: Config, store: Store) -> dict:
                     english.extend(r for r in rows if str(r["language"]).strip().lower() == "english")
                 else:
                     english_qrels.extend(r for r in rows if str(r["query_id"]) in wanted)
+            if folder == "queries":
+                english = select_english_queries(
+                    english, config.dataset.excluded_query_ids or [], config.dataset.expected_english_queries
+                )
     runtime, labels, audit = prepare_annotations(
         english,
         english_qrels,
@@ -267,6 +277,8 @@ def _download(config: Config, store: Store) -> dict:
         "language": "english",
         "annotation_policy": "english_only_transient_upstream_downloads",
         "annotation_sources": annotation_sources,
+        "excluded_query_ids": list(config.dataset.excluded_query_ids or []),
+        "retained_query_ids": [q["query_id"] for q in runtime],
         "documents": documents,
         "counts": {
             "documents": len(documents),
@@ -276,6 +288,8 @@ def _download(config: Config, store: Store) -> dict:
         "files": downloaded_files,
     }
     manifest["id"] = manifest_identity(manifest)
+    manifest["source_dataset_id"] = manifest["id"]
+    manifest["derived_files"] = {"queries.jsonl": {}, "labels.jsonl": {}}
     prepared = config.work_dir / "datasets" / manifest["id"]
     write_jsonl(prepared / "queries.jsonl", runtime)
     write_jsonl(prepared / "labels.jsonl", labels)
@@ -292,7 +306,7 @@ def manifest_identity(manifest: dict) -> str:
     content = {
         k: v
         for k, v in manifest.items()
-        if k not in {"id", "prepared_dir", "queries_sha256", "labels_sha256"}
+        if k not in {"id", "prepared_dir", "queries_sha256", "labels_sha256", "source_dataset_id", "derived_files"}
     }
     content["documents"] = [{k: v for k, v in d.items() if k != "pdf_path"} for d in manifest["documents"]]
     return digest(content)

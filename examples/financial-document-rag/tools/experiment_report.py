@@ -1,8 +1,11 @@
 """Common offline report entrypoint; optionally combine verified reused arms."""
 import argparse
 from pathlib import Path
-from financial_rag.common import read_json
+
 from experiment_review.new_run import build_review
+
+from financial_rag.common import read_json
+
 
 def main(argv=None):
     ap=argparse.ArgumentParser(description=__doc__)
@@ -15,4 +18,5 @@ def main(argv=None):
         build_delivery(args.plan)
 
 
-if __name__=='__main__':main()
+if __name__ == "__main__":
+    main()

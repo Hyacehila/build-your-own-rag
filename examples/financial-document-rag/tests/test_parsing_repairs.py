@@ -2,6 +2,7 @@ from types import SimpleNamespace as NS
 
 from docling_core.types.doc import (
     BoundingBox,
+    ContentLayer,
     CoordOrigin,
     DocItemLabel,
     DoclingDocument,
@@ -32,6 +33,29 @@ def element(cid, left, top, right, bottom, label=DocItemLabel.TEXT):
         page_no=1,
         page_size=Size(width=600, height=800),
     )
+
+
+def test_legacy_furniture_root_remains_projected():
+    doc = DoclingDocument(name="legacy-furniture")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    header = doc.add_text(
+        label=DocItemLabel.PAGE_HEADER,
+        text="Old header",
+        content_layer=ContentLayer.FURNITURE,
+        prov=ProvenanceItem(
+            page_no=1,
+            charspan=(0, 10),
+            bbox=BoundingBox(l=20, t=20, r=100, b=40, coord_origin=CoordOrigin.TOPLEFT),
+        ),
+    )
+    legacy_root = doc.__dict__["furniture"]
+    doc.body.children = [ref for ref in doc.body.children if ref.cref != header.self_ref]
+    header.parent = legacy_root.get_ref()
+    legacy_root.children.append(header.get_ref())
+    nodes = docling_nodes(doc, {"doc_id": "old", "id": "old-v1", "pages": 1}, "old-parse")
+    by_ref = {node["ref"]: node for node in nodes}
+    assert by_ref[header.self_ref]["parent_ref"] == "#/furniture"
+    assert by_ref[header.self_ref]["reading_order"] is None
 
 
 def test_full_width_zones_preserve_nodes_and_within_zone_order():

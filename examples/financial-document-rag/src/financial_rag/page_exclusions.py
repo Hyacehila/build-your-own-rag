@@ -47,7 +47,9 @@ def exclude_pages(document, page_numbers):
             break
         removed |= empty
     result = deepcopy(snapshot)
-    mapping = {"#/body": "#/body", "#/furniture": "#/furniture"}
+    mapping = {"#/body": "#/body"}
+    if "furniture" in result:
+        mapping["#/furniture"] = "#/furniture"
     for name in ITEM_LISTS:
         result[name] = [x for x in result.get(name, []) if x["self_ref"] not in removed]
         mapping.update({x["self_ref"]: f"#/{name}/{i}" for i, x in enumerate(result[name])})
@@ -62,7 +64,10 @@ def exclude_pages(document, page_numbers):
                 children.append(ref)
         return children
 
-    nodes = [result["body"], result["furniture"], *[x for n in ITEM_LISTS for x in result[n]]]
+    roots = [result["body"]]
+    if "furniture" in result:
+        roots.append(result["furniture"])
+    nodes = [*roots, *[x for n in ITEM_LISTS for x in result[n]]]
     for item in nodes:
         item["children"] = retained_children(item.get("children", []))
         parent = item.get("parent")

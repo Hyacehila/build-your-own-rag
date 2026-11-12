@@ -159,7 +159,7 @@ def enrich(config: Config, store: Store, node_ids: list[str] | None = None) -> d
             if fatal_provider_error(e):
                 raise
     # Body windows are built from immutable B blocks without loading benchmark files.
-    from .summary_windows import body_windows, summary_key, summary_config
+    from .summary_windows import body_windows, summary_config, summary_key
     base = store.get("indices", store.meta("index:structured"))
     windows = body_windows(store, base)
     report["body_windows"] = {"expected": len(windows), "completed": 0, "cached": 0}
@@ -181,7 +181,8 @@ def enrich(config: Config, store: Store, node_ids: list[str] | None = None) -> d
             report["body_windows"]["completed"] += 1
         except Exception as e:
             report["failed"].append({"window_id": window["id"], "type": type(e).__name__, "error": str(e)})
-            if fatal_provider_error(e): raise
+            if fatal_provider_error(e):
+                raise
 
     return report
 
@@ -231,7 +232,8 @@ def enriched_chunks(
         key = summary_key(config, window)
         record = store.cached(key)
         if record is None:
-            if diagnostic_partial: continue
+            if diagnostic_partial:
+                continue
             raise RagError("Missing body-window summary; run enrich before publishing C")
         enhancement_ids.append(key)
         output.append({"text": "\n".join([*window["headings"], record["text"]]),

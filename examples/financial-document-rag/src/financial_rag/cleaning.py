@@ -10,7 +10,7 @@ from pathlib import Path
 from .common import RagError, canonical, digest, read_json, sha256, write_json
 from .storage import Store
 
-CONTRACT = "reviewed-financial-facts-v2"
+CONTRACT = "reviewed-financial-facts-v3"
 RISK_CHECKS = {
     "table_region_numbers_not_assigned",
     "table_region_text_not_assigned",
@@ -518,8 +518,8 @@ def main():
     parser.add_argument("--source-work-dir", type=Path, help="Required for prepare: raw input work directory")
     parser.add_argument("--workspace", type=Path, default=Path(".local/cleaning-v1"))
     parser.add_argument("--profiles", type=Path, default=Path("profiles/cleaning-v2"))
-    parser.add_argument("--output", type=Path, default=Path(".local/facts-v2-release"))
-    parser.add_argument("--database", type=Path, default=Path("handoff/finance-facts-v2.sqlite"))
+    parser.add_argument("--output", type=Path, default=Path(".local/facts-v3-release"))
+    parser.add_argument("--database", type=Path, default=Path("handoff/finance-facts-v3.sqlite"))
     parser.add_argument("--pdf-dir", type=Path)
     parser.add_argument("--max-pages", type=int, default=400)
     parser.add_argument("--no-chunks", action="store_true")

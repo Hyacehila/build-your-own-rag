@@ -16,7 +16,8 @@ class OriginalCatalog:
                 def contiguous(other):
                     positions = [self.nodes[n]['reading_order'] for v in [c, other] for n in v['node_ids']]
                     parse = self.nodes[c['node_ids'][0]]['parse_id']
-                    if self.nodes[c['node_ids'][0]].get('section_id') is not None: return True
+                    if self.nodes[c["node_ids"][0]].get("section_id") is not None:
+                        return True
                     return not any(n['parse_id']==parse and n['kind']=='section_header'
                                    and min(positions)<n['reading_order']<max(positions) for n in self.nodes.values()
                                    if n.get('reading_order') is not None)

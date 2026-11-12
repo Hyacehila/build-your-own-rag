@@ -29,6 +29,10 @@
 
 自己的文档处理顺序是：准备文档清单与原始解析 → 按清洗技能构建候选、人工审阅标题与来源 → 验收并发布事实库 → flat/structured 分块与向量化 → 摘要与 enriched 索引 → 准备题集 → 创建独立实验。六份财报的 profiles 对应各自的文档版本，不能直接套用到新文档。
 
+清洗按节点的 `content_layer` 区分正文与导航、页眉等内容。对正文树中的节点重新分类时，只调整指定节点的内容层，保留其子节点各自的内容层。清洗使用新版原始解析；如果输入的旧 `#/furniture` 根仍有子节点，程序会提示改用原始解析。历史快照仍可读取。具体行为参见 [Docling 的内容层导出说明](https://docling-project.github.io/docling/usage/supported_formats/)及项目锁定版本的[文档遍历规则](https://github.com/docling-project/docling-core/blob/v2.91.0/docling_core/types/doc/document.py)。
+
+新的事实构建使用 `reviewed-financial-facts-v3`，事实投影也区分了内容层版本。默认候选目录为 `.local/facts-v3-release`，标题审阅目录为 `.local/final-outline-v3`，导出数据库为 `handoff/finance-facts-v3.sqlite`。已有清洗结果、索引和历史成绩不会自动改写；需要使用新结构时，应构建新候选，重新审阅最终标题树，再分别建立对应索引。查看旧结果时可通过命令参数指定旧路径；现有 `cleaning-v2` profiles 的格式没有改变。
+
 当前 CLI 面向清单和工作区，尚无任意 PDF 路径的一键导入；`download` 针对配置中的 [ViDoRe V3 Finance - EN](https://huggingface.co/datasets/vidore/vidore_v3_finance_en/tree/main) 数据集。各入口参数可通过以下命令查看，这些帮助命令不创建实验或调用 API：
 
 ```powershell
@@ -41,17 +45,17 @@
 正式准备器使用已准备的原文和清洗结果。默认查找以下本地材料，缺少时会提示路径与下一步：
 
 - `query.source_work_dir/experiment.sqlite`：可读事实库及完整的flat/structured/enriched索引、对应embedding；PDF和原图路径也须有效。
-- `--cohort`：`queries.jsonl`、`labels.jsonl`、`manifest.json`，包含有序题号和源数据集身份；原标签不变。固定历史296题的派生清单不随Git发布，也不由准备器自动猜测生成。
+- `--cohort`：指向 `download` 生成的 `datasets/<数据集ID>` 目录，其中包含 `queries.jsonl`、`labels.jsonl`、`manifest.json`，记录有序题号和源数据集身份；原标签不变。固定历史运行材料不随 Git 发布。
 - 预实验额外需要 `--selection`：显式固定题号清单；全量使用整个cohort。
 - 仅合并历史D/pre-D时需要 `--reuse-material`：原记录、原评分、快照与来源清单；没有复用包可以省略该参数，只运行新组别，不能填入历史分数代替缺失记录。
 
-题量、文档量和页数由配置及清单核对。作者从原始题集中筛除部分有问题的题目，固定保留 296 题；现有下载准备流程不会自动重建这份筛选清单，直接使用固定版本的上游数据会因题数不符而失败。更换文档或问题范围须显式准备匹配配置，不混入当前历史运行。
+题量、文档量和页数由配置及清单核对。默认 `download` 按 [README 中列出的 13 个题号](README.md#数据集来源)筛选，保留 296 题并生成可用作 `--cohort` 的清单。新下载的数据需搭配同一数据集身份的事实库和索引；历史运行复核仍需原有匹配材料。更换数据源或问题范围须显式准备匹配配置，不混入当前历史运行。
 
 本轮固定题集、清洗决策及历史投入无法仅凭代码仓库重建。复核材料由持有者另行交付，当前仓库不提供自动下载历史库的方式。
 
 ## 创建新计划
 
-以下命令要求前述材料已就绪。`--check`只进行本地读取检查，不等于验证API连通性。
+以下命令展示复用历史 D/pre-D 材料的情况，要求前述历史材料已就绪。使用新下载的数据时，向准备器传入 `--cohort <download 返回的 prepared_dir>`，并在没有匹配复用包时省略 `--reuse-material`。`--check`只进行本地读取检查，不等于验证API连通性。
 
 ```powershell
 .\.venv\Scripts\python.exe -B -X utf8 tools/experiment_setup.py --check --scope full

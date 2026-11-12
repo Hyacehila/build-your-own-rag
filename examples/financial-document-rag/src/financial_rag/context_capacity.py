@@ -1,8 +1,10 @@
 """Declared gateway capacity with explicit provenance and counting limitations."""
 import copy
-from pathlib import Path
-import tiktoken
 from functools import lru_cache
+from pathlib import Path
+
+import tiktoken
+
 from .common import RagError, canonical, read_json, sha256
 
 

@@ -1,14 +1,20 @@
+import sys
+from pathlib import Path
+
 import pytest
-from docling_core.types.doc import ContentLayer, DocItemLabel, DoclingDocument, Size
+from docling_core.types.doc import ContentLayer, DocItemLabel, DoclingDocument, GroupLabel, ListGroup, Size
 from test_page_exclusions import provenance
 
 from financial_rag.asset_roles import empty_tables_as_pictures
 from financial_rag.cleaning import build, export_release, restore_release, risk_pages
 from financial_rag.cleaning_profiles import apply_profile
 from financial_rag.common import RagError, read_json, write_json
-from financial_rag.final_outline import accept, outline
-from financial_rag.parsing import load_docling
+from financial_rag.config import Config, Tokens
+from financial_rag.final_outline import accept, heading_rows, outline
+from financial_rag.outline import apply_item_reparents, apply_outline_patches
+from financial_rag.parsing import docling_nodes, load_docling
 from financial_rag.storage import Store
+from financial_rag.tokenization import Tokenizer
 
 
 def final_outline_receipt(root, release):
@@ -64,11 +70,17 @@ def test_navigation_and_promoted_header_preserve_descendant_body():
     }
     revised, report = apply_profile(doc, profile)
     assert report["content_unchanged"]
-    assert revised.texts[0].parent.cref == "#/furniture"
+    assert revised.texts[0].content_layer == ContentLayer.FURNITURE
+    assert revised.texts[0].parent.cref != "#/furniture"
     assert revised.texts[1].parent.cref == header.self_ref
     assert revised.texts[1].text == "Original facts 365"
     assert revised.texts[2].label == DocItemLabel.SECTION_HEADER
     assert doc.texts[2].label == DocItemLabel.PAGE_HEADER
+    assert "Contents" not in revised.export_to_markdown()
+    assert "Original facts 365" in revised.export_to_markdown()
+    assert "Contents" in revised.export_to_markdown(included_content_layers=set(ContentLayer))
+    assert revised.validate_tree(revised.body)
+    revised._validate_rules()
     profile["promote"][0]["evidence_pages"] = [2]
     with pytest.raises(RagError, match="same-page"):
         apply_profile(doc, profile)
@@ -77,8 +89,20 @@ def test_navigation_and_promoted_header_preserve_descendant_body():
 def test_navigation_list_keeps_its_subtype_and_source_text():
     doc = DoclingDocument(name="mixed navigation")
     doc.add_page(page_no=1, size=Size(width=600, height=800))
+    group = doc.add_group(label=GroupLabel.LIST)
     item = doc.add_list_item(
-        text="Contents entry 17", enumerated=True, marker="a.", prov=provenance(1, "Contents entry 17")
+        text="Contents entry 17",
+        enumerated=True,
+        marker="a.",
+        prov=provenance(1, "Contents entry 17"),
+        parent=group,
+    )
+    visible = doc.add_list_item(
+        text="Actual disclosure",
+        enumerated=True,
+        marker="b.",
+        prov=provenance(1, "Actual disclosure"),
+        parent=group,
     )
     profile = {
         "excluded_pages": [],
@@ -88,11 +112,177 @@ def test_navigation_list_keeps_its_subtype_and_source_text():
     }
     revised, report = apply_profile(doc, profile)
     assert report["content_unchanged"] and revised.texts[0].marker == "a."
-    assert revised.texts[0].text == item.text and revised.texts[0].parent.cref == "#/furniture"
-    DoclingDocument.model_validate(revised.model_dump(mode="json"))
+    assert revised.texts[0].text == item.text and revised.texts[0].content_layer == ContentLayer.FURNITURE
+    assert isinstance(revised.texts[0].parent.resolve(revised), ListGroup)
+    roundtrip = DoclingDocument.model_validate(revised.model_dump(mode="json"))
+    assert roundtrip.validate_tree(roundtrip.body)
+    roundtrip._validate_rules()
+    assert "Contents entry 17" not in roundtrip.export_to_markdown()
+    assert "Actual disclosure" in roundtrip.export_to_markdown()
+    assert roundtrip.texts[1].self_ref == visible.self_ref
 
 
-def test_fact_release_roundtrip_and_version_guard(local, tmp_path):
+def test_furniture_reclassification_retains_body_descendants_and_reading_order(tmp_path):
+    from financial_rag.chunking import hybrid_chunks
+
+    doc = DoclingDocument(name="navigation with body")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    nav = doc.add_text(label=DocItemLabel.TEXT, text="Navigation", prov=provenance(1, "Navigation"))
+    body = doc.add_text(
+        label=DocItemLabel.TEXT, text="Retained facts", parent=nav, prov=provenance(1, "Retained facts")
+    )
+    profile = {"excluded_pages": [], "boundaries": [1], "heading_levels": {}, "furniture": [nav.self_ref]}
+    revised, report = apply_profile(doc, profile)
+    assert report["content_unchanged"]
+    assert revised.texts[0].content_layer == ContentLayer.FURNITURE
+    assert revised.texts[1].parent.cref == nav.self_ref
+    assert "Navigation" not in revised.export_to_markdown()
+    assert "Retained facts" in revised.export_to_markdown()
+    nodes = docling_nodes(revised, {"doc_id": "d", "id": "v", "pages": 1}, "p")
+    by_ref = {n["ref"]: n for n in nodes}
+    assert "#/furniture" not in by_ref
+    assert by_ref[nav.self_ref]["reading_order"] is None
+    assert by_ref[body.self_ref]["reading_order"] is not None
+    snapshot = tmp_path / "document.json"
+    write_json(snapshot, revised.model_dump(mode="json"))
+    config = Config(work_dir=tmp_path, tokenizer=Tokens(kind="approx", estimated=True))
+    chunks = hybrid_chunks({"snapshot": str(snapshot)}, nodes, config, Tokenizer(config.tokenizer))
+    assert any("Retained facts" in chunk["text"] for chunk in chunks)
+    assert all("Navigation" not in chunk["text"] for chunk in chunks)
+
+
+def test_furniture_heading_does_not_change_body_heading_scope(tmp_path):
+    from financial_rag.chunking import hybrid_chunks
+
+    doc = DoclingDocument(name="layered headings")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    main = doc.add_heading(text="Main section", level=1, prov=provenance(1, "Main section"))
+    hidden = doc.add_heading(
+        text="Page heading", level=1, prov=provenance(1, "Page heading"), content_layer=ContentLayer.FURNITURE
+    )
+    body = doc.add_text(
+        label=DocItemLabel.TEXT, text="Financial facts", prov=provenance(1, "Financial facts")
+    )
+    profile = {"excluded_pages": [], "boundaries": [1], "heading_levels": {main.self_ref: 1}}
+    revised, _ = apply_profile(doc, profile)
+    assert revised.texts[2].parent.cref == main.self_ref
+    nodes = docling_nodes(revised, {"doc_id": "d", "id": "v", "pages": 1}, "p")
+    by_ref = {n["ref"]: n for n in nodes}
+    assert by_ref[hidden.self_ref]["reading_order"] is None
+    assert by_ref[body.self_ref]["headings"] == ["Main section"]
+    snapshot = tmp_path / "document.json"
+    write_json(snapshot, revised.model_dump(mode="json"))
+    config = Config(work_dir=tmp_path, tokenizer=Tokens(kind="approx", estimated=True))
+    chunks = hybrid_chunks({"snapshot": str(snapshot)}, nodes, config, Tokenizer(config.tokenizer))
+    assert any("Financial facts" in chunk["text"] for chunk in chunks)
+    assert all("Page heading" not in chunk["text"] for chunk in chunks)
+
+
+@pytest.mark.parametrize(
+    "layer", [ContentLayer.FURNITURE, ContentLayer.BACKGROUND, ContentLayer.INVISIBLE, ContentLayer.NOTES]
+)
+def test_non_body_heading_is_not_a_reading_position_or_body_section(layer):
+    doc = DoclingDocument(name="non-body content")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    heading = doc.add_heading(
+        text="Hidden heading", level=1, content_layer=layer, prov=provenance(1, "Hidden heading")
+    )
+    section = doc.add_heading(
+        text="Visible section", level=2, parent=heading, prov=provenance(1, "Visible section")
+    )
+    child = doc.add_text(
+        label=DocItemLabel.TEXT, text="Visible child", parent=section, prov=provenance(1, "Visible child")
+    )
+    nodes = {n["ref"]: n for n in docling_nodes(doc, {"doc_id": "d", "id": "v", "pages": 1}, "p")}
+    assert nodes[heading.self_ref]["reading_order"] is None
+    assert nodes[child.self_ref]["reading_order"] is not None
+    assert nodes[child.self_ref]["headings"] == ["Visible section"]
+    headings = heading_rows(list(nodes.values()))
+    assert [item["ref"] for item in headings] == [section.self_ref]
+    assert headings[0]["parent_heading_ref"] is None
+
+
+def test_outline_edits_reject_a_non_body_parent():
+    doc = DoclingDocument(name="layered outline")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    hidden = doc.add_heading(
+        text="Page heading", level=1, content_layer=ContentLayer.FURNITURE, prov=provenance(1, "Page heading")
+    )
+    section = doc.add_heading(text="Main section", level=2, prov=provenance(1, "Main section"))
+    body = doc.add_text(label=DocItemLabel.TEXT, text="Retained facts", prov=provenance(1, "Retained facts"))
+    move = {"child_ref": body.self_ref, "parent_ref": hidden.self_ref, "evidence_pages": [1]}
+    with pytest.raises(RagError, match="heading parent"):
+        apply_item_reparents(doc, [move], [1])
+    patch = {"child_ref": section.self_ref, "parent_ref": hidden.self_ref, "evidence_pages": [1]}
+    with pytest.raises(RagError, match="existing, preceding headings"):
+        apply_outline_patches(doc, {"nest": [patch]}, [1])
+
+
+@pytest.mark.parametrize("excluded_pages", [[], [{"page_number": 1}]])
+def test_cleaning_rejects_legacy_furniture_without_changing_source(excluded_pages):
+    doc = DoclingDocument(name="legacy furniture")
+    doc.add_page(page_no=1, size=Size(width=600, height=800))
+    header = doc.add_text(
+        label=DocItemLabel.PAGE_HEADER,
+        text="Old header",
+        content_layer=ContentLayer.FURNITURE,
+        prov=provenance(1, "Old header"),
+    )
+    legacy = doc.__dict__["furniture"]
+    doc.body.children = [r for r in doc.body.children if r.cref != header.self_ref]
+    header.parent = legacy.get_ref()
+    legacy.children.append(header.get_ref())
+    original = doc.model_dump(mode="json")
+    with pytest.raises(RagError, match="raw parse with content layers"):
+        apply_profile(doc, {"excluded_pages": excluded_pages, "boundaries": [1], "heading_levels": {}})
+    assert doc.model_dump(mode="json") == original
+
+
+def test_default_cli_paths_keep_new_facts_and_reviews_separate(monkeypatch):
+    from financial_rag import cleaning, config, final_outline
+    from financial_rag.diagnostics import cleaning_audit
+
+    paths = {}
+
+    def build_candidate(workspace, profiles, output, settings):
+        paths["build"] = output
+        return {}
+
+    def export_candidate(output, destination):
+        paths["export"] = (output, destination)
+        return {}
+
+    def make_packets(root, reviews, packet_size):
+        paths["packets"] = (root, reviews)
+        return {}
+
+    def audit(root):
+        paths["audit"] = root
+        return []
+
+    monkeypatch.setattr(config, "load_config", lambda _: None)
+    monkeypatch.setattr(cleaning, "build", build_candidate)
+    monkeypatch.setattr(cleaning, "export_release", export_candidate)
+    monkeypatch.setattr(final_outline, "packets", make_packets)
+    monkeypatch.setattr(cleaning_audit, "audit_pages", audit)
+    monkeypatch.setattr(sys, "argv", ["cleaning", "build"])
+    cleaning.main()
+    monkeypatch.setattr(sys, "argv", ["cleaning", "export"])
+    cleaning.main()
+    monkeypatch.setattr(sys, "argv", ["final_outline", "packets"])
+    final_outline.main()
+    cleaning_audit.main([])
+
+    output = Path(".local/facts-v3-release")
+    assert paths == {
+        "build": output,
+        "export": (output, Path("handoff/finance-facts-v3.sqlite")),
+        "packets": (output, Path(".local/final-outline-v3")),
+        "audit": output,
+    }
+
+
+def test_fact_release_roundtrip_and_version_guard(local, tmp_path, monkeypatch):
     config, source = local
     doc = source.meta("dataset")["documents"][0]
     raw = source.get("parses", source.meta("parse:structured:" + doc["id"]))
@@ -128,6 +318,13 @@ def test_fact_release_roundtrip_and_version_guard(local, tmp_path):
     export_release(output, database)
     restored = restore_release(database, tmp_path / "restored", output / "raw")
     assert restored["release_id"] == result["release_id"]
+    from financial_rag import cleaning
+
+    with monkeypatch.context() as temporary:
+        temporary.setattr(cleaning, "CONTRACT", "reviewed-financial-facts-v2")
+        with pytest.raises(RagError, match="inputs changed"):
+            build(workspace, profiles, output, config)
+    assert read_json(output / "release.json")["release_id"] == result["release_id"]
     assert (tmp_path / "restored/release.json").exists()
     with pytest.raises(RagError, match="already exists"):
         export_release(output, database)

@@ -53,6 +53,23 @@ def test_normalization_content_and_relations(local):
     assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 
 
+def test_content_layer_projection_has_its_own_fact_version(local, monkeypatch):
+    from financial_rag import facts
+
+    config, store = local
+    doc = store.meta("dataset")["documents"][0]
+    raw = store.get("parses", store.meta("rawparse:structured:" + doc["id"]))
+    old_contract = {key: value for key, value in facts.NORMALIZATION.items() if key != "projection"}
+    with monkeypatch.context() as temporary:
+        temporary.setattr(facts, "NORMALIZATION", old_contract)
+        old = facts.normalized_parse(config, store, raw, doc)
+    old_nodes = store.nodes(old["id"])
+    current = facts.normalized_parse(config, store, raw, doc)
+    assert current["id"] != old["id"]
+    assert store.nodes(old["id"]) == old_nodes
+    assert store.meta("parse:structured:" + doc["id"]) == current["id"]
+
+
 def test_parse_identity_ignores_models_keys_and_directory(tmp_path, monkeypatch):
     config = Config(work_dir=tmp_path / "one")
     first = parse_signature(config, "structured")

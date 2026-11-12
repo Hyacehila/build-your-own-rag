@@ -1,10 +1,12 @@
 """D: frozen rewrite, initial snapshot, fixed expansion and autonomous source reading."""
 import json
+
+from ..agent_reading import AGENT_SYSTEM, TOOLS, FixedReading, original_content, parse_final, response_summary
 from ..common import RagError, canonical, digest
 from ..context_capacity import Capacity
 from ..evidence_packet import restore, snapshot
-from ..structural_expansion import Structure, StructuralReader
-from ..agent_reading import AGENT_SYSTEM, TOOLS, FixedReading, parse_final, original_content, response_summary
+from ..structural_expansion import StructuralReader, Structure
+
 
 def execute(self, question, saved=None, save_initial=None):
     if self.index['kind'] != 'structured' or self.original_index['id'] != self.index['id']:
@@ -29,10 +31,12 @@ def execute(self, question, saved=None, save_initial=None):
         self.initial_snapshot['packet']['requested_items'] = requested['requested_items']
         self.initial_snapshot['sha256'] = digest(self.initial_snapshot['packet'])
         requested = requested['requested_items']
-        if save_initial: save_initial(self.initial_snapshot)
+        if save_initial:
+            save_initial(self.initial_snapshot)
     structure = Structure(self.catalog,self.reader.tokenizer)
     reader = StructuralReader(self.config,self.store,self.original_index,unbounded=True)
-    reader.adopt(self.reader,structure);self.reader=reader
+    reader.adopt(self.reader, structure)
+    self.reader = reader
     self.requested_items = [{'item_id':f'R{i+1}','request':item} for i,item in enumerate(requested or [question])]
     self.reader.unbounded = True
     self.reader.image_limit = self.config.query.agent_total_images
@@ -53,21 +57,28 @@ def execute(self, question, saved=None, save_initial=None):
         read_ids = set()
         fixed.begin_turn()
         for tc in m['tool_calls']:
-            fn=tc['function'];args={};before_ids=set(self.reader.evidence)
+            fn = tc["function"]
+            args = {}
+            before_ids = set(self.reader.evidence)
             self.tool_calls += 1
             try:
                 import jsonschema
                 args=json.loads(fn.get('arguments','{}'))
                 schemas={t['function']['name']:t['function']['parameters'] for t in TOOLS}
-                if fn.get('name') not in schemas: raise ValueError('Unknown tool; use search/read/read_parent/read_source_pages/continue_read/read_evidence')
+                if fn.get("name") not in schemas:
+                    raise ValueError(
+                        "Unknown tool; use search/read/read_parent/read_source_pages/continue_read/read_evidence"
+                    )
                 jsonschema.validate(args,schemas[fn['name']])
                 if fn['name']=='search':
-                    hits=self.search(args['query']);self.tool_calls-=1
+                    hits = self.search(args["query"])
+                    self.tool_calls -= 1
                     response=[{'source_id':h['id'],'kind':h['kind'],'headings':h.get('headings',[]),
                                'sources':h['sources'],'preview':self.reader.tokenizer.prefix(h['text'],self.config.query.search_preview_tokens)} for h in hits]
                 elif fn['name']=='read_evidence':
                     eid=args['evidence_id']
-                    if eid not in self.reader.evidence: raise RagError('Unknown read evidence_id')
+                    if eid not in self.reader.evidence:
+                        raise RagError("Unknown read evidence_id")
                     response={'results':[{'evidence_id':eid}], 'retained_original':True}
                 else:
                     response=getattr(fixed,fn['name'])(**args)
@@ -78,8 +89,10 @@ def execute(self, question, saved=None, save_initial=None):
                           'instruction':'Correct the source ID/tool arguments or choose a new query. No original read was fabricated.'}
             detail={'tool':fn.get('name'),'actor':'model','arguments':args,'response':response,
                     'new_evidence':sorted(set(self.reader.evidence)-before_ids),'tool_call_id':tc['id'],'index_id':self.index['id']}
-            if fn.get('name')=='search' and isinstance(response,list): self.trace[-1].update(detail)
-            else:self.trace.append(detail)
+            if fn.get("name") == "search" and isinstance(response, list):
+                self.trace[-1].update(detail)
+            else:
+                self.trace.append(detail)
             messages.append({'role':'tool','tool_call_id':tc['id'],'content':canonical(response_summary(response))})
         if read_ids:
             messages.append({'role':'user','content':original_content(self.reader,read_ids)})

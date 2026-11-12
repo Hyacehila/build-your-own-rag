@@ -1,5 +1,4 @@
 from __future__ import annotations
-from financial_rag.chunking import chunk
 
 import json
 from pathlib import Path
@@ -9,8 +8,9 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from financial_rag.chunking import current_index
-from financial_rag.common import RagError, read_jsonl
+from financial_rag.chunking import chunk, current_index
+from financial_rag.common import RagError, read_json, read_jsonl
+from financial_rag.config import Config
 from financial_rag.dataset import download
 from financial_rag.enrichment import enrich, enrichment_key
 from financial_rag.parsing import active_parses, load_docling, parse
@@ -182,7 +182,10 @@ def test_download_checks_size_and_joins_full_mapping(local, monkeypatch):
             {**q, **{k: v for k, v in label.items() if k not in ("qrels", "query_id")}, "language": "english"}
             for q, label in zip(queries, labels)
         ]
-        + [{"query_id": "discarded", "query": "DROP_ME_NON_ENGLISH", "language": "unsupported"}],
+        + [
+            {"query_id": "excluded", "query": "EXCLUDED_QUESTION", "language": "english"},
+            {"query_id": "discarded", "query": "DROP_ME_NON_ENGLISH", "language": "unsupported"},
+        ],
     )
     parquet("documents_metadata", [{"file_name": doc["filename"], "doc_id": doc["doc_id"], "page_number": 3}])
     parquet(
@@ -220,16 +223,30 @@ def test_download_checks_size_and_joins_full_mapping(local, monkeypatch):
     config.dataset.expected_documents = 1
     config.dataset.expected_pages = 3
     config.dataset.expected_english_queries = 3
+    config.dataset.excluded_query_ids = ["excluded"]
     result = download(config, store)
     assert result["counts"] == {"documents": 1, "pages": 3, "queries": 3}
     assert result["files"]["pdfs/" + doc["filename"]] == {"bytes": pdf.stat().st_size}
     assert result["language"] == "english"
-    assert not list(dest.glob("queries/*.parquet"))
-    assert not list(dest.glob("qrels/*.parquet"))
+    assert list(dest.glob("queries/*.parquet"))
+    assert list(dest.glob("qrels/*.parquet"))
     assert not list(config.work_dir.glob("finance-english-*"))
-    assert "DROP_ME_NON_ENGLISH" not in (Path(result["prepared_dir"]) / "queries.jsonl").read_text(
-        encoding="utf-8"
-    )
+    prepared = Path(result["prepared_dir"])
+    assert [q["query_id"] for q in read_jsonl(prepared / "queries.jsonl")] == [q["query_id"] for q in queries]
+    actual_labels = read_jsonl(prepared / "labels.jsonl")
+    for actual, original_label in zip(actual_labels, labels):
+        assert {k: v for k, v in actual.items() if k != "qrels"} == {
+            k: v for k, v in original_label.items() if k != "qrels"
+        }
+        assert [(q["page_index"], q["grade"]) for q in actual["qrels"]] == [
+            (q["page_index"], q["grade"]) for q in original_label["qrels"]
+        ]
+    saved = read_json(prepared / "manifest.json")
+    assert saved["source_dataset_id"] == result["id"]
+    assert saved["retained_query_ids"] == [q["query_id"] for q in queries]
+    assert set(saved["derived_files"]) == {"queries.jsonl", "labels.jsonl"}
+    assert "DROP_ME_NON_ENGLISH" not in (prepared / "queries.jsonl").read_text(encoding="utf-8")
+    assert "EXCLUDED_QUESTION" not in (prepared / "queries.jsonl").read_text(encoding="utf-8")
     with pdf.open("r+b") as f:
         f.seek(-8, 2)
         f.write(b"BAD")
@@ -238,3 +255,18 @@ def test_download_checks_size_and_joins_full_mapping(local, monkeypatch):
     _check_download_size(pdf, SimpleNamespace(size=pdf.stat().st_size,lfs={"sha256":"wrong"}),"fixture")
     with pytest.raises(RagError, match="size mismatch"):
         _check_download_size(pdf, SimpleNamespace(size=pdf.stat().st_size+1),"fixture")
+
+
+def test_download_failure_preserves_existing_annotations(tmp_path, monkeypatch):
+    import financial_rag.dataset as module
+
+    config = Config(work_dir=tmp_path)
+    root = tmp_path / "raw" / config.dataset.revision
+    files = [root / name / "existing.parquet" for name in ("queries", "qrels")]
+    for path in files:
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b"existing data")
+    monkeypatch.setattr(module, "_download", lambda *_: (_ for _ in ()).throw(RagError("download failed")))
+    with pytest.raises(RagError, match="download failed"):
+        download(config, None)
+    assert all(path.read_bytes() == b"existing data" for path in files)

@@ -1,6 +1,6 @@
 """C: protected B originals followed by at most five novel summary entries."""
-from ..retrieval import Search, page_ranking
 from ..bc_restoration import select_coverage, select_supplement
+from ..retrieval import Search, page_ranking
 from .b import assemble
 from .shared import answer
 

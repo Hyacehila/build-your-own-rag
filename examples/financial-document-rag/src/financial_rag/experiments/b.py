@@ -1,8 +1,8 @@
 """B: twenty original coverage entries and the common B/C priority assembler."""
+from ..bc_restoration import assemble_restored, select_coverage
 from ..common import RagError
-from .shared import answer
 from ..structural_expansion import StructuralReader
-from ..bc_restoration import select_coverage, assemble_restored
+from .shared import answer
 
 
 def retrieve(self, query):

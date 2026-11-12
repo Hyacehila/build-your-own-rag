@@ -12,7 +12,8 @@ def paired(left,right):
 
 
 def holm(items):
-    ordered=sorted(items.items(),key=lambda kv:kv[1]['exact_two_sided_p']);last=0
+    ordered = sorted(items.items(), key=lambda kv: kv[1]["exact_two_sided_p"])
+    last = 0
     for i,(_,v) in enumerate(ordered):
         last=max(last,min(1,(len(ordered)-i)*v['exact_two_sided_p']))
         v['holm_p']=last

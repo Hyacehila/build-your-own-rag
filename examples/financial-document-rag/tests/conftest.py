@@ -6,11 +6,11 @@ import re
 
 import httpx
 import pytest
+from support import prepare_test_source
 
 from financial_rag.chunking import chunk
 from financial_rag.config import Chunking, Config, Role, Tokens
 from financial_rag.storage import Store
-from support import prepare_test_source
 
 
 class FakeAPI:

@@ -16,7 +16,7 @@ from experiment_review._context import ImmutableStore
 
 from financial_rag.chunking import current_index
 from financial_rag.common import RagError, digest, read_json, read_jsonl, sha256, write_json
-from financial_rag.config import load_config, ARMS
+from financial_rag.config import ARMS, load_config
 from financial_rag.context_capacity import Capacity
 from financial_rag.dataset import dataset
 from financial_rag.storage import Store

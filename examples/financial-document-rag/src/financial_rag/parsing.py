@@ -99,7 +99,13 @@ def docling_nodes(dl_doc, doc: dict, parse_id: str) -> list[dict]:
     from .facts import relations
 
     nodes, items = [], {}
-    for root in (dl_doc.body, dl_doc.furniture):
+    # Current Docling puts all layers under body. Project a legacy root only
+    # when it still contains items from an older saved document.
+    roots = [dl_doc.body]
+    legacy_furniture = dl_doc.__dict__.get("furniture")
+    if legacy_furniture is not None and legacy_furniture.children:
+        roots.append(legacy_furniture)
+    for root in roots:
         for item, _ in dl_doc.iterate_items(
             root=root, with_groups=True, traverse_pictures=True, included_content_layers=set(ContentLayer)
         ):

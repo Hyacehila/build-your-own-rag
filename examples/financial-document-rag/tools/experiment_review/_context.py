@@ -7,7 +7,6 @@ from pathlib import Path
 
 from financial_rag.storage import Store
 
-
 PROJECT = Path(__file__).resolve().parents[2]
 
 

@@ -23,7 +23,7 @@ def heading_rows(nodes):
             if parent["id"] in seen:
                 raise RagError("Cycle in final outline ancestry.")
             seen.add(parent["id"])
-            if parent["kind"] in HEADINGS:
+            if parent["kind"] in HEADINGS and parent["raw"].get("content_layer", "body") == "body":
                 chain.append(parent)
             if parent["raw"].get("name", "").startswith("source-range:"):
                 scope = parent["raw"]["name"]
@@ -194,8 +194,8 @@ def accept(root, reviews):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["packets", "accept", "verify"])
-    parser.add_argument("--root", type=Path, default=Path(".local/facts-v2-release"))
-    parser.add_argument("--reviews", type=Path, default=Path(".local/final-outline-v2"))
+    parser.add_argument("--root", type=Path, default=Path(".local/facts-v3-release"))
+    parser.add_argument("--reviews", type=Path, default=Path(".local/final-outline-v3"))
     parser.add_argument("--packet-size", type=int, default=100)
     args = parser.parse_args()
     if args.action == "packets":

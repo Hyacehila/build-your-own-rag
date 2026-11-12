@@ -7,7 +7,11 @@ from pathlib import Path
 
 from .common import RagError, digest, sha256, versions, write_json
 
-NORMALIZATION = {"contract": "existing-heading-levels-v1", **versions("docling-core")}
+NORMALIZATION = {
+    "contract": "existing-heading-levels-v1",
+    "projection": "content-layers-v1",
+    **versions("docling-core"),
+}
 HEADINGS = {"title", "section_header"}
 BODY_KINDS = {"text", "paragraph", "list_item", "formula", "code"}
 ASSETS = {"table", "picture"}
@@ -41,14 +45,20 @@ def relations(nodes: list[dict]) -> list[dict]:
         if node["ref"] not in siblings:
             raise RagError("Parent/child references disagree.")
         node["sibling_order"] = siblings.index(node["ref"])
-        heading_refs = [r for r in [*chain, node["ref"]] if refs[r]["kind"] in HEADINGS]
+        heading_refs = [
+            r
+            for r in [*chain, node["ref"]]
+            if refs[r]["kind"] in HEADINGS and refs[r].get("raw", {}).get("content_layer", "body") == "body"
+        ]
         node["section_id"] = refs[heading_refs[-1]]["id"] if heading_refs else None
         node["section_ref"] = heading_refs[-1] if heading_refs else None
         node["headings"] = [refs[r]["text"] for r in heading_refs]
         # Containers and content nested inside an asset remain addressable, but are
         # not independent body-reading positions. Furniture never joins a body window.
-        readable = bool(node.get("sources")) and not any(
-            refs[r]["kind"] in ASSETS or r == "#/furniture" for r in chain
+        readable = (
+            node.get("raw", {}).get("content_layer", "body") == "body"
+            and bool(node.get("sources"))
+            and not any(refs[r]["kind"] in ASSETS or r == "#/furniture" for r in chain)
         )
         node["reading_order"] = order if readable else None
         if readable:

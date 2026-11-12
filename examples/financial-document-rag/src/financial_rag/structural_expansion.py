@@ -2,8 +2,9 @@
 import copy
 import re
 from collections import defaultdict
+
 from .common import RagError
-from .facts import BODY_KINDS, ASSETS, HEADINGS
+from .facts import ASSETS, BODY_KINDS, HEADINGS
 from .sources import Reader
 
 POLICY = {'short_section_body_tokens': 4000}
@@ -26,14 +27,18 @@ class Structure:
         self.lengths = {}
 
     def node(self, nid):
-        if nid not in self.nodes: raise RagError('Node outside frozen original index')
+        if nid not in self.nodes:
+            raise RagError("Node outside frozen original index")
         return self.nodes[nid]
 
     def targets(self, node_id=None, chunk_id=None):
-        if (node_id is None) == (chunk_id is None): raise RagError('Supply exactly one original node_id or chunk_id')
+        if (node_id is None) == (chunk_id is None):
+            raise RagError("Supply exactly one original node_id or chunk_id")
         ids = [node_id] if node_id is not None else self.catalog.chunks.get(chunk_id, {}).get('node_ids')
-        if not ids: raise RagError('Chunk outside frozen original index or without nodes')
-        for nid in ids: self.node(nid)
+        if not ids:
+            raise RagError("Chunk outside frozen original index or without nodes")
+        for nid in ids:
+            self.node(nid)
         return list(dict.fromkeys(ids))
 
     def related(self, ids):
@@ -46,8 +51,15 @@ class Structure:
                 if other:
                     # Only explicit original relationships, never inferred relevance.
                     result.append(other['id'])
-                else: gaps.append({'reason': 'unresolved_explicit_relation', 'node_id': nid,
-                                    'reference': ref, 'sources': n.get('sources', [])})
+                else:
+                    gaps.append(
+                        {
+                            "reason": "unresolved_explicit_relation",
+                            "node_id": nid,
+                            "reference": ref,
+                            "sources": n.get("sources", []),
+                        }
+                    )
         return list(dict.fromkeys(result)), gaps
 
     def select(self, anchors, *, whole=False, short=False, radius=8):
@@ -57,8 +69,10 @@ class Structure:
         grouped = defaultdict(list)
         for nid in anchors:
             self.node(nid)
-            if nid in self.segment_of: grouped[self.segment_of[nid]].append(nid)
-            else: selected.append(nid)
+            if nid in self.segment_of:
+                grouped[self.segment_of[nid]].append(nid)
+            else:
+                selected.append(nid)
         for sid, seeds in grouped.items():
             segment = self.segments[sid]
             body = [nid for nid in segment if self.nodes[nid]['kind'] in BODY_KINDS]
@@ -109,7 +123,8 @@ class StructuralReader(Reader):
             if result.get('evidence_id') and key in getattr(self, 'structure_nodes', {}):
                 self.evidence[result['evidence_id']]['heading_path'] = self.structure_nodes[key].get('headings', [])
             return result
-        finally: self._read_limit = original_limit
+        finally:
+            self._read_limit = original_limit
 
     def adopt(self, old, structure):
         for attr in ['evidence','images','seen','text_used','preview_used','question']:
@@ -117,23 +132,27 @@ class StructuralReader(Reader):
         self.structure_nodes = structure.nodes
         # Preserve immutable first packet while avoiding redisplaying its original spans.
         for e in self.evidence.values():
-            if e['type']!='text' or not e.get('chunk_id'): continue
+            if e["type"] != "text" or not e.get("chunk_id"):
+                continue
             chunk = structure.catalog.chunks[e['chunk_id']]
             snippet = e['text']
             header = '\n'.join(chunk.get('headings', []))
-            if header and snippet.startswith(header): snippet=snippet[len(header):].lstrip('\n')
+            if header and snippet.startswith(header):
+                snippet = snippet[len(header) :].lstrip("\n")
             normalized = re.sub(r'\s+', ' ', snippet).strip()
             for nid in chunk['node_ids']:
                 text=structure.nodes[nid]['text']
                 if text and re.sub(r'\s+',' ',text).strip() in normalized:
                     self.alias_intervals[nid].append((0,len(text),e['id']))
                 elif snippet and snippet in text:
-                    start=text.index(snippet);self.alias_intervals[nid].append((start,start+len(snippet),e['id']))
+                    start = text.index(snippet)
+                    self.alias_intervals[nid].append((start, start + len(snippet), e["id"]))
 
     def content(self, only_ids=None):
         parts=super().content(only_ids)
         for part in parts:
-            if part.get('type')!='text':continue
+            if part.get("type") != "text":
+                continue
             match=re.match(r'\[(E\d+)\]',part['text'])
             path=self.evidence.get(match[1],{}).get('heading_path',[]) if match else []
             if path:
@@ -143,14 +162,17 @@ class StructuralReader(Reader):
 
 
 def read_nodes(reader, structure, ids, *, include_images=True, node_start=0, offset=0):
-    if node_start<0 or node_start>len(ids): raise RagError('Node cursor outside selection')
+    if node_start < 0 or node_start > len(ids):
+        raise RagError("Node cursor outside selection")
     results, unread = [], []
     reader.structure_nodes = structure.nodes
     for i,nid in enumerate(ids[node_start:],node_start):
-        node=structure.node(nid);cursor=offset if i==node_start else 0
+        node = structure.node(nid)
+        cursor = offset if i == node_start else 0
         while True:
             if reader.remaining<=0:
-                unread.append({'node_id':nid,'offset':cursor,'node_start':i});break
+                unread.append({"node_id": nid, "offset": cursor, "node_start": i})
+                break
             # The selected list already includes explicit relations. A continuation's
             # offset applies only to this node, never to its shorter caption/footnote.
             before=set(reader.evidence)
@@ -160,12 +182,15 @@ def read_nodes(reader, structure, ids, *, include_images=True, node_start=0, off
                 'include_images':include_images and node['kind'] in ASSETS},'response':response,
                 'new_evidence':sorted(set(reader.evidence)-before),'status':'ok'})
             results.extend(response.get('results', []))
-            if response.get('error'): raise RagError(response['error'])
+            if response.get("error"):
+                raise RagError(response["error"])
             part=next((x for x in response.get('results',[]) if x.get('node_id')==nid),{})
             nxt=part.get('next_offset')
-            if nxt is None: break
+            if nxt is None:
+                break
             if nxt<=cursor:
-                unread.append({'node_id':nid,'offset':cursor,'node_start':i});break
+                unread.append({"node_id": nid, "offset": cursor, "node_start": i})
+                break
             cursor=nxt
     return {'results':results,'selected_node_ids':ids,'unread_ranges':unread,
             'next_cursor':unread[0] if unread else None,

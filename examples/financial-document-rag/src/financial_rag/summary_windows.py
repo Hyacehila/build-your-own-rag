@@ -1,8 +1,9 @@
 """Question-independent five-original-block summary windows."""
+import json
 from collections import defaultdict
+
 from .common import RagError, digest
 from .facts import BODY_KINDS
-import json
 
 CONTRACT = "same-section-five-blocks-overlap-one-v1"
 

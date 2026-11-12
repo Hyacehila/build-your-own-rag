@@ -12,6 +12,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .common import RagError, digest
 
 DATASET_REVISION = "7f432c176d82e27546501ad8064a713ac3071809"
+DATASET_REPO = "vidore/vidore_v3_finance_en"
+FINANCE_EXCLUDED_QUERY_IDS = (
+    "0", "1", "54", "56", "80", "81", "82", "90", "133", "166", "180", "192", "257"
+)
 ARMS = {"A": "flat", "B": "structured", "C": "enriched", "pre-D": "structured", "D": "structured"}
 
 
@@ -206,16 +210,25 @@ class Pricing(Strict):
 
 
 class Dataset(Strict):
-    repo: str = "vidore/vidore_v3_finance_en"
+    repo: str = DATASET_REPO
     revision: str = DATASET_REVISION
     expected_documents: int = 6
     expected_pages: int = 2942
     expected_english_queries: int = 296
+    excluded_query_ids: list[str] | None = None
 
     @model_validator(mode="after")
     def pinned(self):
         if not re.fullmatch(r"[0-9a-f]{40}", self.revision):
             raise ValueError("Dataset revision must be a full immutable commit SHA")
+        if self.excluded_query_ids is None:
+            self.excluded_query_ids = (
+                list(FINANCE_EXCLUDED_QUERY_IDS)
+                if (self.repo, self.revision) == (DATASET_REPO, DATASET_REVISION)
+                else []
+            )
+        if len(set(self.excluded_query_ids)) != len(self.excluded_query_ids):
+            raise ValueError("Excluded query IDs must be unique")
         return self
 
 

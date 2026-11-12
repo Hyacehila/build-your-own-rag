@@ -87,7 +87,7 @@ def main(argv=None):
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=Path(".local/facts-v2-release"))
+    parser.add_argument("--output", type=Path, default=Path(".local/facts-v3-release"))
     args = parser.parse_args(argv)
     for r in audit_pages(args.output):
         print(

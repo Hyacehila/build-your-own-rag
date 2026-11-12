@@ -3,7 +3,7 @@
 from bisect import bisect_right
 from collections import Counter
 
-from docling_core.types.doc import GroupItem, GroupLabel, SectionHeaderItem, TitleItem
+from docling_core.types.doc import ContentLayer, GroupItem, GroupLabel, SectionHeaderItem, TitleItem
 
 from .common import RagError
 
@@ -89,9 +89,11 @@ def rebuild_scoped(document, boundaries, former_heading_refs=None):
                 groups[current] = document.add_group(label=GroupLabel.SECTION, name=f"source-range:{current}")
             stacks[current] = [(0, groups[current])]
         stack = stacks[current]
-        level = (
-            item.level if isinstance(item, SectionHeaderItem) else 1 if isinstance(item, TitleItem) else None
-        )
+        level = None
+        if item.content_layer == ContentLayer.BODY:
+            level = (
+                item.level if isinstance(item, SectionHeaderItem) else 1 if isinstance(item, TitleItem) else None
+            )
         if level is not None:
             while len(stack) > 1 and stack[-1][0] >= level:
                 stack.pop()
@@ -108,7 +110,9 @@ def apply_outline_patches(document, proposal, boundaries):
     """Nest existing heading subtrees only. Reject invalid/forward/cross-document parents."""
     doc = document.model_copy(deep=True)
     before = fingerprint_content(doc)
-    headings = [h for h in doc.texts if isinstance(h, SectionHeaderItem)]
+    headings = [
+        h for h in doc.texts if isinstance(h, SectionHeaderItem) and h.content_layer == ContentLayer.BODY
+    ]
     order = {h.self_ref: i for i, h in enumerate(headings)}
     by_ref = {h.self_ref: h for h in headings}
     starts = sorted(boundaries)
@@ -206,6 +210,7 @@ def apply_item_reparents(document, moves, boundaries):
             child is None
             or parent is None
             or not isinstance(parent, (SectionHeaderItem, TitleItem))
+            or parent.content_layer != ContentLayer.BODY
             or child.self_ref == parent.self_ref
             or parent.self_ref in descendants(child)
             or scope(child) != scope(parent)

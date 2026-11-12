@@ -12,7 +12,7 @@ import numpy as np
 import pymupdf
 
 from ..chunking import current_index
-from ..common import canonical, RagError, read_json, write_json
+from ..common import RagError, canonical, read_json, write_json
 from ..dataset import dataset
 from ..facts import ASSETS, BODY_KINDS, HEADINGS, fact_content
 from ..tokenization import Tokenizer

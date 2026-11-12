@@ -6,10 +6,30 @@ import pytest
 
 from financial_rag.chunking import current_index, flat_chunks
 from financial_rag.common import RagError
-from financial_rag.config import Chunking
-from financial_rag.dataset import inspect, prepare_annotations
+from financial_rag.config import FINANCE_EXCLUDED_QUERY_IDS, Chunking, Dataset
+from financial_rag.dataset import inspect, prepare_annotations, select_english_queries
 from financial_rag.sources import Reader, validate_citations
 from financial_rag.tokenization import Tokenizer, recursive_spans
+
+
+def test_cohort_selection_preserves_retained_questions_and_checks_exclusions():
+    excluded = ["0", "1", "54", "56", "80", "81", "82", "90", "133", "166", "180", "192", "257"]
+    retained = [{"query_id": f"kept-{i}", "query": f"question {i}", "language": "english"} for i in range(296)]
+    queries = [{"query_id": qid, "query": "excluded", "language": "english"} for qid in excluded] + retained
+    assert select_english_queries(queries, excluded, 296) == retained
+    with pytest.raises(RagError, match="missing"):
+        select_english_queries(queries, excluded + ["missing"], 296)
+    with pytest.raises(RagError, match="Duplicate"):
+        select_english_queries(queries + [retained[0]], excluded, 296)
+
+
+def test_finance_exclusions_follow_the_source_and_revision():
+    assert Dataset().excluded_query_ids == list(FINANCE_EXCLUDED_QUERY_IDS)
+    assert Dataset(repo="other/dataset").excluded_query_ids == []
+    assert Dataset(revision="a" * 40).excluded_query_ids == []
+    assert Dataset(excluded_query_ids=[]).excluded_query_ids == []
+    with pytest.raises(ValueError, match="unique"):
+        Dataset(excluded_query_ids=["1", "1"])
 
 
 def test_english_filter_and_page_origin_are_validated_over_all_rows():

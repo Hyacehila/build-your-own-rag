@@ -1,3 +1,6 @@
+from copy import deepcopy
+from types import SimpleNamespace
+
 import pytest
 from docling_core.types.doc import (
     BoundingBox,
@@ -59,3 +62,18 @@ def test_exclude_pages_refuses_mixed_page_nodes_and_invalid_page_labels():
     for pages in ({0}, {3}, {True}, set()):
         with pytest.raises(RagError, match="physical PDF"):
             exclude_pages(document, pages)
+
+
+def test_exclude_pages_accepts_snapshot_without_legacy_furniture_root():
+    document = DoclingDocument(name="modern document")
+    for page in (1, 2):
+        document.add_page(page_no=page, size=Size(width=600, height=800))
+    document.add_text(label=DocItemLabel.TEXT, text="old page", prov=provenance(1, "old page"))
+    document.add_text(label=DocItemLabel.TEXT, text="retained page", prov=provenance(2, "retained page"))
+    snapshot = document.model_dump(mode="json")
+    snapshot.pop("furniture")
+    modern = SimpleNamespace(pages=document.pages, model_dump=lambda **_: deepcopy(snapshot))
+    candidate, report = exclude_pages(modern, {1})
+    assert [item.text for item in candidate.texts] == ["retained page"]
+    assert candidate.validate_tree(candidate.body)
+    assert "#/furniture" not in report["old_to_new_refs"]
