@@ -11,10 +11,10 @@ from financial_rag.diagnostics.structural_repairs import (
     repair_headings,
     semantic_content,
 )
-from financial_rag.mineru_bridge import convert_content_list, html_table_data
-from financial_rag.mineru_cloud import prepare_trial, submit_trial
-from financial_rag.parsing import active_parses, docling_nodes, load_docling
-from financial_rag.provenance import localize_fragment
+from financial_rag.document.mineru_bridge import convert_content_list, html_table_data
+from financial_rag.document.mineru_cloud import prepare_trial, submit_trial
+from financial_rag.document.parsing import active_parses, docling_nodes, load_docling
+from financial_rag.document.provenance import localize_fragment
 
 
 def test_mineru_html_spans_numbers_and_original_page_mapping():

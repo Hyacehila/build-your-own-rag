@@ -8,12 +8,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from financial_rag.chunking import chunk, current_index
 from financial_rag.common import RagError, read_json, read_jsonl
 from financial_rag.config import Config
 from financial_rag.dataset import download
-from financial_rag.enrichment import enrich, enrichment_key
-from financial_rag.parsing import active_parses, load_docling, parse
+from financial_rag.document.parsing import active_parses, load_docling, parse
+from financial_rag.indexing.chunking import chunk, current_index
+from financial_rag.indexing.enrichment import enrich, enrichment_key
 
 
 def test_parse_retry_removes_stale_partial_nodes(local):
@@ -28,7 +28,7 @@ def test_parse_retry_removes_stale_partial_nodes(local):
 
 
 def test_embedding_estimate_works_before_structured_index(local):
-    from financial_rag.retrieval import estimate
+    from financial_rag.query.retrieval import estimate
 
     config, store = local
     with store.db:
@@ -41,7 +41,7 @@ def test_embedding_estimate_works_before_structured_index(local):
 
 def test_model_bundle_checks_presence_without_checksum(tmp_path):
     from financial_rag.common import write_json
-    from financial_rag.models import verify_models
+    from financial_rag.document.models import verify_models
 
     weight = tmp_path / "model.safetensors"
     weight.write_bytes(b"offline model integrity fixture")
@@ -114,7 +114,7 @@ def test_empty_table_region_uses_original_image_and_vision_identity(configured):
 
 def test_parser_reuses_readable_snapshot_and_retries_invalid_snapshot(local, monkeypatch):
     config, store = local
-    import financial_rag.parsing as module
+    import financial_rag.document.parsing as module
 
     snapshot = active_parses(config, store, "structured")[0]
     document = load_docling(snapshot)
@@ -141,7 +141,7 @@ def test_parser_reuses_readable_snapshot_and_retries_invalid_snapshot(local, mon
 
 def test_parse_failure_is_persisted_and_blocks_index(local, monkeypatch):
     config, store = local
-    import financial_rag.parsing as module
+    import financial_rag.document.parsing as module
 
     def unavailable(_):
         raise RuntimeError("test layout model unavailable")

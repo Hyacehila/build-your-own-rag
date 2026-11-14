@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from financial_rag.common import RagError, read_json
-from financial_rag.mineru_packets import prepare_document, submit_document
+from financial_rag.document.mineru_packets import prepare_document, submit_document
 
 
 def test_document_trial_maps_excluded_pages_and_reserves_once(local, tmp_path, monkeypatch):

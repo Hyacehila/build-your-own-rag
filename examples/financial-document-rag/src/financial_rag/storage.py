@@ -186,7 +186,7 @@ class Store:
             )
 
     def put_parse(self, parsed: dict, nodes: list[dict]):
-        from .facts import relations
+        from financial_rag.document.facts import relations
 
         nodes = relations(nodes)
         payload = canonical(self.portable(parsed))

@@ -1,17 +1,20 @@
+import json
+from pathlib import Path
+
 import pytest
 from docling_core.types.doc import DocItemLabel
 from test_cleaning import final_outline_receipt
 
 from financial_rag.api import ModelAPI
-from financial_rag.chunking import chunk
-from financial_rag.cleaning import build, export_release
 from financial_rag.common import RagError, write_json
 from financial_rag.config import Chunking, Role, Tokens
 from financial_rag.dataset import dataset
-from financial_rag.final_outline import accept
-from financial_rag.parsing import active_parses, load_docling, parse
-from financial_rag.retrieval import Search, embed_index
-from financial_rag.retrieval_release import check, export, prepare, reuse_embeddings
+from financial_rag.document.cleaning import build, export_release
+from financial_rag.document.final_outline import accept
+from financial_rag.document.parsing import active_parses, load_docling, parse
+from financial_rag.indexing.chunking import chunk
+from financial_rag.indexing.release import attach, check, export, prepare, reuse_embeddings
+from financial_rag.query.retrieval import Search, embed_index
 from financial_rag.storage import Store
 
 
@@ -48,13 +51,59 @@ def accepted_fixture(config, source, tmp_path):
     return database, output / "raw"
 
 
+def test_attach_reviewed_facts_keeps_dataset_and_can_evaluate(configured, tmp_path):
+    from financial_rag.evaluation import evaluate
+    from financial_rag.query.runner import run
+
+    config, store, _ = configured
+    accepted_fixture(config, store, tmp_path)
+    manifest = store.meta("dataset")
+    questions = (Path(manifest["prepared_dir"]) / "queries.jsonl").read_bytes()
+    labels = (Path(manifest["prepared_dir"]) / "labels.jsonl").read_bytes()
+    wrong = dict(manifest, documents=[dict(manifest["documents"][0], pages=999)])
+    store.set_meta("dataset", wrong)
+    with pytest.raises(RagError, match="identity or page count"):
+        attach(store, tmp_path / "facts")
+    assert store.meta("fact_release") is None
+    store.set_meta("dataset", manifest)
+
+    result = attach(store, tmp_path / "facts")
+    assert not result["already_attached"]
+    assert attach(store, tmp_path / "facts")["already_attached"]
+    assert store.meta("dataset") == manifest
+    assert (Path(manifest["prepared_dir"]) / "queries.jsonl").read_bytes() == questions
+    assert (Path(manifest["prepared_dir"]) / "labels.jsonl").read_bytes() == labels
+    with pytest.raises(RagError, match="stale after parsing"):
+        from financial_rag.indexing.chunking import current_index
+
+        current_index(config, store, "structured")
+    chunk(config, store, "structured")
+    embed_index(config, store, "structured")
+    assert run(config, store, "reviewed", ["B"], limit=1)["failures"] == 0
+    assert evaluate(config, store, "reviewed")["pending"] == 0
+
+
+def test_attach_rejects_reviewed_node_with_wrong_source_page(local, tmp_path):
+    config, target = local
+    accepted_fixture(config, target, tmp_path)
+    with Store(tmp_path / "facts") as reviewed:
+        parsed = reviewed.meta("fact_release")["documents"][0]["parse_id"]
+        node = next(n for n in reviewed.nodes(parsed) if n["kind"] == "text" and n["sources"])
+        node["sources"][0]["page_number"] = 999
+        with reviewed.db:
+            reviewed.db.execute("UPDATE nodes SET payload=? WHERE id=?", (json.dumps(node), node["id"]))
+    with pytest.raises(RagError, match="invalid document or physical page"):
+        attach(target, tmp_path / "facts")
+    assert target.meta("fact_release") is None
+
+
 def test_accepted_facts_to_retrieval_and_portable_restore(local, fake, tmp_path):
     original_config, source = local
     database, pdf_dir = accepted_fixture(original_config, source, tmp_path)
     config = original_config.model_copy(deep=True)
     config.work_dir = tmp_path / "retrieval"
-    config.tokenizer = Tokens()
-    config.chunking = Chunking(max_tokens=800, overlap=100, table_headers="multirow", source_scope="fragment")
+    config.tokenizer = Tokens(kind="approx", name="offline-test", estimated=True)
+    config.chunking = Chunking(max_tokens=800, overlap=100, source_scope="fragment")
     config.models.embedding = Role(
         base_url=fake.url, model="offline-double", request_params={"dimensions": 32}
     )
@@ -124,9 +173,9 @@ def test_hybrid_uses_fact_parents_at_independent_appendix_boundary(tmp_path):
     from docling_core.types.doc import DoclingDocument, Size
     from test_page_exclusions import provenance
 
-    from financial_rag.chunking import hybrid_chunks
     from financial_rag.config import Config
-    from financial_rag.parsing import docling_nodes
+    from financial_rag.document.parsing import docling_nodes
+    from financial_rag.indexing.chunking import hybrid_chunks
     from financial_rag.tokenization import Tokenizer
 
     doc = DoclingDocument(name="two independent scopes")
@@ -142,7 +191,10 @@ def test_hybrid_uses_fact_parents_at_independent_appendix_boundary(tmp_path):
     path = tmp_path / "doc.json"
     write_json(path, doc.model_dump(mode="json"))
     nodes = docling_nodes(doc, {"doc_id": "scope", "id": "version", "pages": 1}, "parse")
-    config = Config(chunking=Chunking(max_tokens=100, overlap=10, table_headers="multirow"))
+    config = Config(
+        tokenizer=Tokens(kind="approx", name="offline-test", estimated=True),
+        chunking=Chunking(max_tokens=100, overlap=10),
+    )
     tokenizer = Tokenizer(config.tokenizer)
     chunks = hybrid_chunks({"snapshot": str(path)}, nodes, config, tokenizer)
     current = [c for c in chunks if "New body" in c["text"]]

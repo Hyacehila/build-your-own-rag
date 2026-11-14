@@ -16,7 +16,7 @@ from docling_core.types.doc import (
 )
 
 from financial_rag.common import digest, write_json, write_jsonl
-from financial_rag.parsing import parse
+from financial_rag.document.parsing import parse
 
 
 def prepare_test_source(config, store, monkeypatch):
@@ -127,7 +127,7 @@ def prepare_test_source(config, store, monkeypatch):
             return SimpleNamespace(document=document, status=SimpleNamespace(value="success"), errors=[])
 
     with monkeypatch.context() as patch:
-        patch.setattr("financial_rag.parsing._converter", lambda _: Converter())
+        patch.setattr("financial_rag.document.parsing._converter", lambda _: Converter())
         assert not parse(config, store, "structured")["failed"]
     assert not parse(config, store, "flat")["failed"]
     return source

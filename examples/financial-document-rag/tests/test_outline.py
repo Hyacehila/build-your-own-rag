@@ -10,7 +10,7 @@ from docling_core.types.doc import (
 )
 
 from financial_rag.common import RagError
-from financial_rag.outline import (
+from financial_rag.document.outline import (
     apply_item_reparents,
     apply_outline_patches,
     fingerprint_content,

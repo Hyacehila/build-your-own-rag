@@ -1,5 +1,7 @@
 """Dataset preparation, parsing and base-index command adapters."""
 
+from pathlib import Path
+
 
 def register(commands):
     p = commands.add_parser(
@@ -17,8 +19,9 @@ def register(commands):
     p = commands.add_parser("chunk", help="Build flat, structured or enriched retrieval chunks")
     p.add_argument("--index", choices=["flat", "structured", "enriched", "all"], required=True)
     p.set_defaults(handler=chunk)
-    p = commands.add_parser("migrate", help="Normalize saved raw snapshots without neural parsing")
-    p.set_defaults(handler=migrate)
+    p = commands.add_parser("attach-facts", help="Use reviewed facts with the prepared benchmark")
+    p.add_argument("--source", type=Path, required=True, help="Reviewed fact workspace")
+    p.set_defaults(handler=attach_facts)
 
 
 def download(args, config, store):
@@ -28,7 +31,7 @@ def download(args, config, store):
 
 
 def download_models(args, config, store):
-    from ..models import download_models
+    from financial_rag.document.models import download_models
 
     return download_models(config)
 
@@ -40,7 +43,7 @@ def inspect(args, config, store):
 
 
 def parse(args, config, store):
-    from ..parsing import parse
+    from financial_rag.document.parsing import parse
 
     kinds = ["flat", "structured"] if args.parser == "all" else [args.parser]
     results = [parse(config, store, kind) for kind in kinds]
@@ -48,13 +51,13 @@ def parse(args, config, store):
 
 
 def chunk(args, config, store):
-    from ..chunking import chunk
+    from financial_rag.indexing.chunking import chunk
 
     kinds = ["flat", "structured", "enriched"] if args.index == "all" else [args.index]
     return {"results": [chunk(config, store, kind) for kind in kinds]}
 
 
-def migrate(args, config, store):
-    from ..facts import migrate
+def attach_facts(args, config, store):
+    from financial_rag.indexing.release import attach
 
-    return migrate(config, store)
+    return attach(store, args.source)

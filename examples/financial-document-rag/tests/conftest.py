@@ -8,8 +8,8 @@ import httpx
 import pytest
 from support import prepare_test_source
 
-from financial_rag.chunking import chunk
 from financial_rag.config import Chunking, Config, Role, Tokens
+from financial_rag.indexing.chunking import chunk
 from financial_rag.storage import Store
 
 
@@ -144,10 +144,5 @@ def configured(local, fake):
     for name in ("embedding", "chat", "vision", "judge"):
         setattr(config.models, name, Role(base_url=fake.url, model="synthetic-" + name, retries=0))
     config.models.chat.request_params = {"max_tokens": 1024}
-    proof = config.work_dir / "synthetic-capacity.json"
-    proof.write_text(json.dumps({"model": config.models.chat.model, "base_url": fake.url,
-        "verification": "operator_configuration", "source_reference": "In-process test provider; not a provider capability claim",
-        "context_window_tokens": 1000000, "image_token_upper_bound": 4096,
-        "message_overhead_tokens": 16, "request_overhead_tokens": 64, "text_encoding": "cl100k_base"}))
-    config.query.capacity_evidence_path = proof
+    config.query.context_window_tokens = 1000000
     return config, store, fake

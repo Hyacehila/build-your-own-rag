@@ -5,14 +5,14 @@ import pytest
 from docling_core.types.doc import ContentLayer, DocItemLabel, DoclingDocument, GroupLabel, ListGroup, Size
 from test_page_exclusions import provenance
 
-from financial_rag.asset_roles import empty_tables_as_pictures
-from financial_rag.cleaning import build, export_release, restore_release, risk_pages
-from financial_rag.cleaning_profiles import apply_profile
 from financial_rag.common import RagError, read_json, write_json
 from financial_rag.config import Config, Tokens
-from financial_rag.final_outline import accept, heading_rows, outline
-from financial_rag.outline import apply_item_reparents, apply_outline_patches
-from financial_rag.parsing import docling_nodes, load_docling
+from financial_rag.document.asset_roles import empty_tables_as_pictures
+from financial_rag.document.cleaning import build, export_release, restore_release, risk_pages
+from financial_rag.document.cleaning_profiles import apply_profile
+from financial_rag.document.final_outline import accept, heading_rows, outline
+from financial_rag.document.outline import apply_item_reparents, apply_outline_patches
+from financial_rag.document.parsing import docling_nodes, load_docling
 from financial_rag.storage import Store
 from financial_rag.tokenization import Tokenizer
 
@@ -123,7 +123,7 @@ def test_navigation_list_keeps_its_subtype_and_source_text():
 
 
 def test_furniture_reclassification_retains_body_descendants_and_reading_order(tmp_path):
-    from financial_rag.chunking import hybrid_chunks
+    from financial_rag.indexing.chunking import hybrid_chunks
 
     doc = DoclingDocument(name="navigation with body")
     doc.add_page(page_no=1, size=Size(width=600, height=800))
@@ -152,7 +152,7 @@ def test_furniture_reclassification_retains_body_descendants_and_reading_order(t
 
 
 def test_furniture_heading_does_not_change_body_heading_scope(tmp_path):
-    from financial_rag.chunking import hybrid_chunks
+    from financial_rag.indexing.chunking import hybrid_chunks
 
     doc = DoclingDocument(name="layered headings")
     doc.add_page(page_no=1, size=Size(width=600, height=800))
@@ -239,8 +239,9 @@ def test_cleaning_rejects_legacy_furniture_without_changing_source(excluded_page
 
 
 def test_default_cli_paths_keep_new_facts_and_reviews_separate(monkeypatch):
-    from financial_rag import cleaning, config, final_outline
+    from financial_rag import config
     from financial_rag.diagnostics import cleaning_audit
+    from financial_rag.document import cleaning, final_outline
 
     paths = {}
 
@@ -318,7 +319,7 @@ def test_fact_release_roundtrip_and_version_guard(local, tmp_path, monkeypatch):
     export_release(output, database)
     restored = restore_release(database, tmp_path / "restored", output / "raw")
     assert restored["release_id"] == result["release_id"]
-    from financial_rag import cleaning
+    from financial_rag.document import cleaning
 
     with monkeypatch.context() as temporary:
         temporary.setattr(cleaning, "CONTRACT", "reviewed-financial-facts-v2")
@@ -383,7 +384,7 @@ def test_risk_routing_retains_physical_pages_and_excludes_navigation():
 def test_empty_diagram_reclassification_remaps_retained_table_and_caption():
     from docling_core.types.doc import TableCell, TableData
 
-    from financial_rag.parsing import docling_nodes
+    from financial_rag.document.parsing import docling_nodes
 
     doc = DoclingDocument(name="assets")
     doc.add_page(page_no=1, size=Size(width=600, height=800))

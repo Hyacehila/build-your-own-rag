@@ -4,11 +4,11 @@ import copy
 
 import pytest
 
-from financial_rag.chunking import current_index, flat_chunks
 from financial_rag.common import RagError
 from financial_rag.config import FINANCE_EXCLUDED_QUERY_IDS, Chunking, Dataset
 from financial_rag.dataset import inspect, prepare_annotations, select_english_queries
-from financial_rag.sources import Reader, validate_citations
+from financial_rag.indexing.chunking import current_index, flat_chunks
+from financial_rag.query.sources import Reader, validate_citations
 from financial_rag.tokenization import Tokenizer, recursive_spans
 
 

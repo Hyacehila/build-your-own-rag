@@ -1,4 +1,4 @@
-work_dir = ".local/contract-v1/runtime"
+work_dir = ".local/workspace"
 
 [dataset]
 repo = "vidore/vidore_v3_finance_en"
@@ -15,8 +15,10 @@ estimated = true
 [chunking]
 max_tokens = 800
 overlap = 100
-table_headers = "multirow"
 source_scope = "fragment"
+
+[parsing]
+artifacts_path = "model_weights/docling"
 
 [retrieval]
 sparse_k = 50
@@ -28,7 +30,6 @@ summary_supplement_k = 5
 group_sources = true
 
 [query]
-bc_assembly = "BC-source-priority-v3"
 bc_text_tokens = 25000
 text_tokens = 40000
 page_images = 8
@@ -37,15 +38,13 @@ search_preview_tokens = 120
 preview_total_tokens = 3000
 read_max_tokens = 40000
 audit_requests = true
-source_work_dir = ".local/contract-v1/source"
-capacity_evidence_path = "config/gateway-capacity.json"
+context_window_tokens = 131072
+input_estimate_multiplier = 1.2
 exploration_calls = 24
 agent_total_images = 16
 agent_request_images = 8
-contract = "five-arm-original-agent-v1"
 
 [enrichment]
-retrieval_mode = "additive"
 image_estimate_tokens = 180
 table_estimate_tokens = 220
 max_input_tokens = 12000
@@ -120,5 +119,3 @@ max_tokens = 8192
 
 [models.judge.request_params.thinking]
 type = "enabled"
-
-[validation]

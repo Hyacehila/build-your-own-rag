@@ -64,7 +64,7 @@ class Role(Strict):
 
     def require(self, name: str) -> None:
         if not self.configured():
-            raise RagError(f"Configure models.{name}.base_url and model before this stage.")
+            raise RagError(f"Configure models.{name}.model and its base_url or base_url_env before this stage.")
         if self.api_key_env and not os.environ.get(self.api_key_env):
             raise RagError(f"Missing environment variable {self.api_key_env} for models.{name}.")
 
@@ -95,16 +95,10 @@ class Tokens(Strict):
 class Chunking(Strict):
     max_tokens: int = Field(default=800, ge=32)
     overlap: int = Field(default=100, ge=0)
-    table_headers: Literal["legacy", "multirow"] = "legacy"
     source_scope: Literal["node", "fragment"] = "node"
 
     def semantic_options(self) -> dict:
-        result = self.model_dump(exclude={"table_headers", "source_scope"})
-        if self.table_headers != "legacy":
-            result["table_headers"] = self.table_headers
-        if self.source_scope != "node":
-            result["source_scope"] = self.source_scope
-        return result
+        return self.model_dump()
 
     @model_validator(mode="after")
     def window(self):
@@ -130,8 +124,7 @@ class Parsing(Strict):
     ocr_mode: Literal["default", "full_page", "pdf_aware_layout_regions"] = "default"
 
     def semantic_options(self) -> dict:
-        # Keep the identity of existing default parses. Opting into a new route
-        # creates a different identity, without invalidating paid legacy indices.
+        # Include nondefault parser choices in the parse identity.
         defaults = {
             "backend": "docling",
             "table_cell_matching": True,
@@ -164,9 +157,7 @@ class Retrieval(Strict):
 
 
 class Query(Strict):
-    # Single contract: B/C/pre-D are one-shot; D searches structured originals.
-    bc_assembly: Literal["BC-source-priority-v3"] = "BC-source-priority-v3"
-    bc_text_tokens: int = Field(default=25000, ge=1, le=25000)
+    bc_text_tokens: int = Field(default=25000, ge=1)
     text_tokens: int = Field(default=40000, ge=1)
     page_images: int = Field(default=8, ge=0)
     image_scale: float = Field(default=1.5, gt=0, le=4)
@@ -175,28 +166,29 @@ class Query(Strict):
     read_max_tokens: int = Field(default=40000, ge=1)
     audit_requests: bool = True
     source_work_dir: Path | None = None
-    capacity_evidence_path: Path | None = None
-    exploration_calls: Literal[24] = 24
-    agent_total_images: Literal[16] = 16
-    agent_request_images: Literal[8] = 8
-    contract: Literal["five-arm-original-agent-v1"] = "five-arm-original-agent-v1"
+    context_window_tokens: int | None = Field(default=None, ge=1)
+    input_estimate_multiplier: float = Field(default=1.2, ge=1, le=2)
+    exploration_calls: int = Field(default=24, ge=1, le=100)
+    agent_total_images: int = Field(default=16, ge=0, le=100)
+    agent_request_images: int = Field(default=8, ge=0, le=100)
 
 
-class Validation(Strict):
-    # Shared across work directories. A reservation is persisted BEFORE each HTTP attempt.
+class Budget(Strict):
+    # One shared ledger counts every provider role and retry before HTTP.
     ledger: Path | None = None
-    batch: str = "finite-integration-v1"
-    deepseek_request_limit: int = Field(default=60, ge=1, le=60)
-    # Separate durable guard for a formal run; includes every provider role.
-    full_ledger: Path | None = None
-    full_batch: str = ""
-    full_request_limit: int | None = Field(default=None, ge=1)
-    full_token_limit: int | None = Field(default=None, ge=1)
-    full_unknown_usage_limit: int = Field(default=100, ge=0)
+    batch: str = Field(default="default", min_length=1)
+    request_limit: int | None = Field(default=None, ge=1)
+    token_limit: int | None = Field(default=None, ge=1)
+    unknown_usage_limit: int = Field(default=100, ge=0)
+
+    @model_validator(mode="after")
+    def configured_limit(self):
+        if self.ledger is not None and self.request_limit is None:
+            raise ValueError("budget.request_limit is required when budget.ledger is set")
+        return self
 
 
 class Enrichment(Strict):
-    retrieval_mode: Literal["additive"] = "additive"
     image_estimate_tokens: int = Field(default=180, ge=1)
     table_estimate_tokens: int = Field(default=220, ge=1)
     max_input_tokens: int = Field(default=12000, ge=100)
@@ -206,7 +198,7 @@ class Enrichment(Strict):
 class Pricing(Strict):
     embedding_per_million: float = Field(default=0.5, ge=0)
     currency: str = "CNY"
-    label: str = "Planning reference only: text-embedding-v4 Beijing list price; model not selected"
+    label: str = "Planning assumption only; verify actual billing with the provider."
 
 
 class Dataset(Strict):
@@ -243,10 +235,10 @@ class Config(Strict):
     query: Query = Field(default_factory=Query)
     enrichment: Enrichment = Field(default_factory=Enrichment)
     pricing: Pricing = Field(default_factory=Pricing)
-    validation: Validation = Field(default_factory=Validation)
+    budget: Budget = Field(default_factory=Budget)
 
     def portable_settings(self) -> dict:
-        result = self.model_dump(mode="json", exclude={"work_dir", "validation"})
+        result = self.model_dump(mode="json", exclude={"work_dir", "budget"})
         result["parsing"] = self.parsing.semantic_options()
         result["chunking"] = self.chunking.semantic_options()
         return result
@@ -261,8 +253,8 @@ def load_config(path: Path | None) -> Config:
     base = path.resolve().parent if path else Path.cwd()
     load_dotenv(base / ".env", override=False)
     settings = tomllib.loads(path.read_text(encoding="utf-8")) if path else {}
-    # Resolve only explicitly opted-in roles. Historical plans contain literal URLs
-    # and must not change identity when the current shell or .env changes.
+    # Data preparation does not need a model gateway. Validate a configured URL
+    # here, and require a missing one only when the model is actually used.
     for name, role in settings.get("models", {}).items():
         if not isinstance(role, dict) or "base_url_env" not in role:
             continue
@@ -273,8 +265,8 @@ def load_config(path: Path | None) -> Config:
             raise RagError(f"models.{name}: choose base_url or base_url_env, not both")
         value = os.environ.get(variable, "").strip()
         if not value:
-            raise RagError(f"Set {variable} in the environment or {base / '.env'} "
-                           f"to the gateway API URL for models.{name} (including /v1)")
+            role["base_url"] = ""
+            continue
         # Validate without echoing potentially credential-bearing input in errors.
         try:
             Role(base_url=value)
@@ -286,12 +278,8 @@ def load_config(path: Path | None) -> Config:
     config.work_dir = (base / config.work_dir).resolve()
     if config.query.source_work_dir:
         config.query.source_work_dir = (base / config.query.source_work_dir).resolve()
-    if config.query.capacity_evidence_path:
-        config.query.capacity_evidence_path = (base / config.query.capacity_evidence_path).resolve()
     if config.parsing.artifacts_path:
         config.parsing.artifacts_path = str((base / config.parsing.artifacts_path).resolve())
-    if config.validation.ledger:
-        config.validation.ledger = (base / config.validation.ledger).resolve()
-    if config.validation.full_ledger:
-        config.validation.full_ledger = (base / config.validation.full_ledger).resolve()
+    if config.budget.ledger:
+        config.budget.ledger = (base / config.budget.ledger).resolve()
     return config

@@ -9,7 +9,7 @@ import pymupdf
 import pytest
 
 from financial_rag.config import Config, Parsing, Tokens
-from financial_rag.parsing import parse_sample
+from financial_rag.document.parsing import parse_sample
 from financial_rag.storage import Store
 
 

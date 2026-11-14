@@ -1,16 +1,13 @@
 """Enhancement, embedding, answering and evaluation command adapters."""
 
 import json
-from pathlib import Path
 
 from ..common import write_json
 from ..config import ARMS
 
 
 def register(commands):
-    p = commands.add_parser(
-        "enrich", help="Generate five-block body, picture and table retrieval summaries"
-    )
+    p = commands.add_parser("enrich", help="Generate five-block body, picture and table retrieval summaries")
     p.add_argument("--node-id", action="append", help="Restrict enhancement to selected active assets")
     p.set_defaults(handler=enrich)
     p = commands.add_parser("estimate-embedding", help="Estimate distinct uncached embedding input costs")
@@ -18,30 +15,28 @@ def register(commands):
     p = commands.add_parser("embed", help="Embed chunks, reusing exact cached inputs")
     p.add_argument("--index", choices=["flat", "structured", "enriched", "all"], default="all")
     p.set_defaults(handler=embed)
-    p = commands.add_parser("run", help="Run or resume an immutable A/B/C/pre-D/D experiment")
-    scope = p.add_mutually_exclusive_group(required=True)
-    scope.add_argument("--run", help="Immutable run ID; reuse only to resume the same settings")
-    scope.add_argument("--plan", type=Path, help="Delegate to the shared frozen serial executor")
+    p = commands.add_parser("run", help="Run or resume an A/B/C/pre-D/D experiment")
+    p.add_argument("--run", required=True, help="Run ID; reuse it to resume the same experiment")
     p.add_argument("--arms", nargs="+", choices=list(ARMS), default=list(ARMS))
-    p.add_argument("--limit", type=int)
+    selection = p.add_mutually_exclusive_group()
+    selection.add_argument("--limit", type=int, help="Run the first N questions")
+    selection.add_argument(
+        "--query-id", action="append", help="Run a selected dataset question; may be repeated"
+    )
     p.add_argument("--retry-errors", action="store_true")
     p.set_defaults(handler=run)
     p = commands.add_parser("evaluate", help="Score a run against its frozen labels")
-    scope = p.add_mutually_exclusive_group(required=True)
-    scope.add_argument("--run")
-    scope.add_argument("--plan", type=Path, help="Use the common frozen-plan entrypoint")
+    p.add_argument("--run", required=True)
     p.set_defaults(handler=evaluate)
     p = commands.add_parser("report", help="Export an evaluated run's report")
-    scope = p.add_mutually_exclusive_group(required=True)
-    scope.add_argument("--run")
-    scope.add_argument("--plan", type=Path, help="Use the common frozen-plan entrypoint")
+    p.add_argument("--run", required=True)
     p.set_defaults(handler=report)
     p = commands.add_parser("usage", help="Export recorded API calls and tokens")
     p.set_defaults(handler=usage)
 
 
 def enrich(args, config, store):
-    from ..enrichment import enrich
+    from financial_rag.indexing.enrichment import enrich
 
     result = enrich(config, store, args.node_id)
     write_json(config.work_dir / "enrichment.json", result)
@@ -49,7 +44,7 @@ def enrich(args, config, store):
 
 
 def estimate(args, config, store):
-    from ..retrieval import estimate
+    from financial_rag.query.retrieval import estimate
 
     result = estimate(config, store)
     write_json(config.work_dir / "embedding-estimate.json", result)
@@ -57,16 +52,24 @@ def estimate(args, config, store):
 
 
 def embed(args, config, store):
-    from ..retrieval import embed_index
+    from financial_rag.query.retrieval import embed_index
 
     kinds = ["flat", "structured", "enriched"] if args.index == "all" else [args.index]
     return {"results": [embed_index(config, store, kind) for kind in kinds]}
 
 
 def run(args, config, store):
-    from ..runner import run
+    from financial_rag.query.runner import run
 
-    return run(config, store, args.run, list(dict.fromkeys(args.arms)), args.limit, args.retry_errors)
+    return run(
+        config,
+        store,
+        args.run,
+        list(dict.fromkeys(args.arms)),
+        args.limit,
+        args.retry_errors,
+        query_ids=args.query_id,
+    )
 
 
 def evaluate(args, config, store):

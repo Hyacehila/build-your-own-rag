@@ -1,5 +1,6 @@
 from types import SimpleNamespace as NS
 
+import pytest
 from docling_core.types.doc import (
     BoundingBox,
     ContentLayer,
@@ -13,12 +14,18 @@ from docling_core.types.doc import (
     TextItem,
 )
 
-from financial_rag.chunking import chunk_signature, hybrid_chunks
-from financial_rag.common import digest, write_json
-from financial_rag.config import Config
+from financial_rag.common import RagError, digest, write_json
+from financial_rag.config import Config, Tokens
 from financial_rag.diagnostics.parsing_quality import inspect_snapshot
-from financial_rag.parsing import active_parses, docling_nodes, load_docling, parse_sample, parse_signature
-from financial_rag.parsing_guards import GuardedReadingOrderModel, merge_rejection, order_page_zones
+from financial_rag.document.parsing import (
+    active_parses,
+    docling_nodes,
+    load_docling,
+    parse_sample,
+    parse_signature,
+)
+from financial_rag.document.parsing_guards import GuardedReadingOrderModel, merge_rejection, order_page_zones
+from financial_rag.indexing.chunking import chunk_signature, hybrid_chunks
 from financial_rag.tokenization import Tokenizer
 
 
@@ -35,7 +42,7 @@ def element(cid, left, top, right, bottom, label=DocItemLabel.TEXT):
     )
 
 
-def test_legacy_furniture_root_remains_projected():
+def test_legacy_furniture_root_requires_reparse(tmp_path):
     doc = DoclingDocument(name="legacy-furniture")
     doc.add_page(page_no=1, size=Size(width=600, height=800))
     header = doc.add_text(
@@ -52,10 +59,12 @@ def test_legacy_furniture_root_remains_projected():
     doc.body.children = [ref for ref in doc.body.children if ref.cref != header.self_ref]
     header.parent = legacy_root.get_ref()
     legacy_root.children.append(header.get_ref())
-    nodes = docling_nodes(doc, {"doc_id": "old", "id": "old-v1", "pages": 1}, "old-parse")
-    by_ref = {node["ref"]: node for node in nodes}
-    assert by_ref[header.self_ref]["parent_ref"] == "#/furniture"
-    assert by_ref[header.self_ref]["reading_order"] is None
+    with pytest.raises(RagError, match="Legacy Docling furniture root"):
+        docling_nodes(doc, {"doc_id": "old", "id": "old-v1", "pages": 1}, "old-parse")
+    snapshot = tmp_path / "legacy.json"
+    write_json(snapshot, doc.model_dump(mode="json"))
+    with pytest.raises(RagError, match="Legacy Docling furniture root"):
+        load_docling({"snapshot": str(snapshot)})
 
 
 def test_full_width_zones_preserve_nodes_and_within_zone_order():
@@ -100,9 +109,8 @@ def test_literal_hyphen_and_original_offsets_on_different_page_sizes():
 
 
 def test_multirow_headers_repeat_without_altering_facts_or_losing_rows(tmp_path):
-    config = Config(work_dir=tmp_path)
+    config = Config(work_dir=tmp_path, tokenizer=Tokens(kind="approx", name="offline-test", estimated=True))
     config.chunking.max_tokens = 150
-    config.chunking.table_headers = "multirow"
     doc = DoclingDocument(name="multirow-header-fixture")
     doc.add_page(page_no=1, size=Size(width=600, height=800))
     heading = doc.add_heading(
@@ -159,17 +167,17 @@ def test_multirow_headers_repeat_without_altering_facts_or_losing_rows(tmp_path)
     assert all(combined.count(f"Metric_{i:02d}") == 1 for i in range(30))
 
 
-def test_new_options_preserve_legacy_cache_identity_and_invalidate_opt_in():
+def test_parser_and_chunk_options_change_only_their_own_identity():
     config = Config()
     legacy_parse = parse_signature(config, "structured")
     legacy_chunk = chunk_signature(config)
-    assert legacy_chunk["chunking"] == {"max_tokens": 800, "overlap": 100}
+    assert legacy_chunk["chunking"] == {"max_tokens": 800, "overlap": 100, "source_scope": "node"}
     assert not {"guarded_merges", "backend", "ocr_engine"} & legacy_parse["options"].keys()
     for field, value in [("guarded_merges", True), ("backend", "pdfium"), ("table_cell_matching", False)]:
         changed = config.model_copy(deep=True)
         setattr(changed.parsing, field, value)
         assert parse_signature(changed, "structured") != legacy_parse
-    config.chunking.table_headers = "multirow"
+    config.chunking.source_scope = "fragment"
     assert chunk_signature(config) != legacy_chunk
     assert parse_signature(config, "structured") == legacy_parse
 
@@ -194,7 +202,7 @@ def test_quality_flags_removed_table_number_and_bad_span(local):
 def test_sample_cache_presence_and_no_database_mutation(local, monkeypatch):
     from docling.datamodel.base_models import InputFormat
 
-    from financial_rag import parsing
+    from financial_rag.document import parsing
 
     config, store = local
     parsed = active_parses(config, store, "structured")[0]

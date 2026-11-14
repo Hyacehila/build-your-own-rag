@@ -11,19 +11,12 @@ from financial_rag.storage import Store
 from financial_rag.validation import doctor
 
 
-def test_cli_four_arm_and_read_only_audit(local, tmp_path, fake, monkeypatch, capsys):
+def test_cli_five_arms_selection_and_read_only_audit(local, tmp_path, fake, monkeypatch, capsys):
     config, _ = local
     for name in ("embedding", "chat", "vision", "judge"):
         setattr(config.models, name, Role(base_url=fake.url, model="offline-double", retries=0))
     config.models.chat.request_params = {"max_tokens": 1024}
-    proof = tmp_path / "synthetic-capacity.json"
-    proof.write_text(json.dumps({
-        "model": config.models.chat.model, "base_url": fake.url,
-        "verification": "operator_configuration", "source_reference": "In-process CLI test provider",
-        "context_window_tokens": 131072, "image_token_upper_bound": 4096,
-        "message_overhead_tokens": 16, "request_overhead_tokens": 64, "text_encoding": "cl100k_base",
-    }))
-    config.query.capacity_evidence_path = proof
+    config.query.context_window_tokens = 131072
     monkeypatch.setattr(cli, "load_config", lambda path: config)
     opened = []
 
@@ -47,18 +40,25 @@ def test_cli_four_arm_and_read_only_audit(local, tmp_path, fake, monkeypatch, ca
     invoke("enrich")
     invoke("chunk", "--index", "enriched")
     invoke("embed", "--index", "all")
-    result = invoke("run", "--run", "cli-fixture", "--arms", "A", "B", "C", "D", "--limit", "1")
-    assert result["records"] == 4 and result["failures"] == 0
+    result = invoke("run", "--run", "cli-fixture", "--arms", "A", "B", "C", "D", "pre-D", "--limit", "1")
+    assert result["records"] == 5 and result["failures"] == 0
     assert result["synthetic"] and not result["full_benchmark"]
     scored = invoke("evaluate", "--run", "cli-fixture")
-    assert scored["rows"] == 4 and scored["pending"] == 0
+    assert scored["rows"] == 5 and scored["pending"] == 0
     report = invoke("report", "--run", "cli-fixture")
     assert Path(report["report"]).is_file()
+    selected = invoke("run", "--run", "selected", "--arms", "B", "--query-id", "q2")
+    assert selected["records"] == 1 and selected["failures"] == 0
+    with Store(config.work_dir, read_only=True) as store:
+        assert store.records("selected")[0]["query_id"] == "q2"
+    invoke("evaluate", "--run", "selected")
+    single_report = Path(invoke("report", "--run", "selected")["report"])
+    assert "deltas.csv" not in single_report.read_text(encoding="utf-8")
     assert Path(invoke("usage")["path"]).is_file()
     requests = len(fake.requests)
     assert invoke("doctor")["dataset_check"] == "passed"
     assert len(fake.requests) == requests
-    invoke("audit-data", "--no-gallery")
+    invoke("diagnose", "audit-data", "--no-gallery")
     assert opened[-1] is True
     assert len(fake.requests) == requests
 

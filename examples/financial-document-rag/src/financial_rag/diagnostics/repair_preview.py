@@ -1,17 +1,18 @@
 """Build reviewable local candidates without changing the active facts or vectors."""
 
+from financial_rag.document.parsing import docling_nodes, load_docling
+
 from ..common import RagError, digest, write_json
-from ..parsing import docling_nodes, load_docling
 from .structural_repairs import CONTRACT, native_grid_candidate, repair_headings
 
 
 def repair_preview(config, store, doc_ids, output):
-    from ..chunking import hybrid_chunks
+    from financial_rag.indexing.chunking import hybrid_chunks
+
     from ..tokenization import Tokenizer
     from .parsing_quality import inspect_snapshot
 
     config = config.model_copy(deep=True)
-    config.chunking.table_headers = "multirow"
     config.chunking.source_scope = "fragment"
     docs = {d["doc_id"]: d for d in store.meta("dataset")["documents"]}
     if not doc_ids or set(doc_ids) - docs.keys():

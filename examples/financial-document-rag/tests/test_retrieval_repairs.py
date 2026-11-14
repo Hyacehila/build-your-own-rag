@@ -5,12 +5,12 @@ import json
 import pytest
 
 from financial_rag.api import APIError, ModelAPI
-from financial_rag.chunking import chunk, current_index
-from financial_rag.enrichment import _describe, enrich, enrichment_key
 from financial_rag.evaluation import summarize
-from financial_rag.retrieval import Search, embed_index
-from financial_rag.runner import QuestionRunner
-from financial_rag.sources import Reader
+from financial_rag.indexing.chunking import chunk, current_index
+from financial_rag.indexing.enrichment import _describe, enrich
+from financial_rag.query.retrieval import Search, embed_index
+from financial_rag.query.runner import QuestionRunner
+from financial_rag.query.sources import Reader
 
 
 @pytest.mark.parametrize("failure", ["length", "empty"])
@@ -110,19 +110,13 @@ def test_additive_enrichment_preserves_originals_and_never_cites_summary(configu
     copies = store.chunks(enriched["id"])
     assert {c["text"] for c in originals} <= {c["text"] for c in copies if not c.get("enrichment_id")}
     summary = next(c for c in copies if c.get("enrichment_id") and c["kind"] == "table")
-    from financial_rag.evidence_packet import OriginalCatalog
+    from financial_rag.query.evidence_packet import OriginalCatalog
     reader = Reader(config, store, base)
     reader.question = "item 24"
     OriginalCatalog(store, base).assemble(reader, [summary], enriched)
     assert reader.evidence
     assert all(e.get("chunk_id") != summary["id"] for e in reader.evidence.values())
     assert any("item 24" in e.get("text", "") for e in reader.evidence.values())
-    node = store.get("nodes", summary["asset_ids"][0])
-    key = enrichment_key(config, node)
-    from financial_rag.config import Enrichment
-    with pytest.raises(ValueError):
-        Enrichment(retrieval_mode="replace")
-    assert enrichment_key(config, node) == key
 
 
 @pytest.mark.parametrize("recover", [True, False])

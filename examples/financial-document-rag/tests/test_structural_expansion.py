@@ -3,11 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from financial_rag.chunking import current_index
 from financial_rag.config import Tokens
-from financial_rag.evidence_packet import OriginalCatalog
-from financial_rag.runner import QuestionRunner, validate_coverage
-from financial_rag.structural_expansion import StructuralReader, Structure, read_nodes
+from financial_rag.indexing.chunking import current_index
+from financial_rag.query.evidence_packet import OriginalCatalog
+from financial_rag.query.runner import QuestionRunner, validate_coverage
+from financial_rag.query.structural_expansion import StructuralReader, Structure, read_nodes
 from financial_rag.tokenization import Tokenizer
 
 
@@ -105,8 +105,8 @@ def test_coverage_rejects_missing_duplicate_unread_and_accepts_honest_gaps():
 
 @pytest.mark.parametrize('name',['read','read_source_pages'])
 def test_explicit_tools_roundtrip(configured,name):
-    from financial_rag.retrieval import embed_index
-    from financial_rag.runner import run
+    from financial_rag.query.retrieval import embed_index
+    from financial_rag.query.runner import run
 
     c, store, f = configured
     embed_index(c, store, "structured")
@@ -138,7 +138,7 @@ def test_original_index_boundary_for_node_tools(configured):
     cat = OriginalCatalog(store, b)
     s = Structure(cat, Tokenizer(c.tokenizer))
     reader = StructuralReader(c, store, b, unbounded=True)
-    from financial_rag.agent_reading import FixedReading
+    from financial_rag.query.agent_reading import FixedReading
 
     with pytest.raises(Exception, match="Unknown original source_id"):
         FixedReading(reader, s, 10000).read(["foreign-summary"])
@@ -146,7 +146,7 @@ def test_original_index_boundary_for_node_tools(configured):
 
 def test_forced_final_without_coverage_succeeds_at_25(configured):
     from financial_rag.api import ModelAPI
-    from financial_rag.retrieval import embed_index
+    from financial_rag.query.retrieval import embed_index
 
     c, store, f = configured
     embed_index(c, store, "structured")

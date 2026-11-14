@@ -11,10 +11,11 @@ from pathlib import Path
 import numpy as np
 import pymupdf
 
-from ..chunking import current_index
+from financial_rag.document.facts import ASSETS, BODY_KINDS, HEADINGS, fact_content
+from financial_rag.indexing.chunking import current_index
+
 from ..common import RagError, canonical, read_json, write_json
 from ..dataset import dataset
-from ..facts import ASSETS, BODY_KINDS, HEADINGS, fact_content
 from ..tokenization import Tokenizer
 from .text_checks import lexical, numbers, recovery
 

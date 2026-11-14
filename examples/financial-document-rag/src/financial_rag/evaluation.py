@@ -223,10 +223,10 @@ def report(config: Config, store: Store, run_id: str) -> dict:
     if not meta:
         raise RagError("Run has not been evaluated or records changed; run evaluate first.")
     rows = read_jsonl(out / "scored.jsonl")
-    current = {(r["arm"],r["query_id"]):r for r in store.records(run_id)}
-    if len(rows)!=len(current) or any(
-        (r["arm"],r["query_id"]) not in current or
-        any(r.get(k)!=v for k,v in current[r["arm"],r["query_id"]].items())
+    current = {(r["arm"], r["query_id"]): r for r in store.records(run_id)}
+    if len(rows) != len(current) or any(
+        (r["arm"], r["query_id"]) not in current
+        or any(r.get(k) != v for k, v in current[r["arm"], r["query_id"]].items())
         for r in rows
     ):
         raise RagError("Run records changed; run evaluate first.")
@@ -264,30 +264,24 @@ def report(config: Config, store: Store, run_id: str) -> dict:
         _csv(out / "deltas.csv", deltas)
 
     def fmt(x):
-        return "pending / N/A" if x is None else f"{x:.4f}"
+        return "待完成或不适用" if x is None else f"{x:.4f}"
 
-    title = (
-        "SYNTHETIC FIXTURE — NOT BENCHMARK RESULTS"
-        if run["synthetic"]
-        else "Financial-document RAG experiment"
-    )
+    title = "测试数据报告（非真实评测）" if run["synthetic"] else "金融文档 RAG 评测报告"
     lines = [
         f"# {title}",
         "",
-        f"Run: `{run_id}`. Full six-PDF / {run['dataset']['counts']['queries']}-question / five-arm run: `{run['full_benchmark']}`.",
+        f"运行编号：`{run_id}`；本次处理 {len(run['queries'])} 题、{len(run['arms'])} 组方案。",
         "",
-        "A→B compares parsing, chunking and structural source expansion together. B→C adds body-window and image/table summary entrances. "
-        "B→pre-D includes both rewriting and initial assembly changes; pre-D→D tests fixed initial expansion plus iterative original-source retrieval. C→D compares alternative architectures.",
+        "A→B 同时改变解析、切片和原文扩展；B→C 增加摘要检索入口。"
+        "B→pre-D 同时改变查询和首次装配；pre-D→D 比较首次扩展及后续回读的共同效果。",
         "",
-        "Initial page retrieval uses deduplicated best chunk rank, linear graded DCG, NDCG@10 and Recall@5/10. "
-        "pre-D and D share the rewritten first-query snapshot over B originals. Agent follow-up searches affect final reads, "
-        "which are reported separately. Failed / not-run questions stay in the denominator.",
+        "页面检索按去重后的最佳片段排名计算 NDCG@10 和 Recall@5/10。"
+        "pre-D 与 D 共享首次查询快照；D 后续检索影响最终回读，单独记录。失败或未运行的题目计入分母。",
         "",
-        "Page evidence coverage is a location metric, not proof of answer correctness. Citation validity checks "
-        "binding to actually read sources, not entailment. Missing citations and missing judges are not invented zero scores. "
-        "Accuracy remains pending until all required answers are judged (run failures count as incorrect when judging is enabled).",
+        "原页覆盖率衡量位置命中，引用有效性检查引用是否指向已读内容。"
+        "评分未完成时不计算整体准确率；运行失败的题目在启用评分时计为错误。",
         "",
-        "| Group | Arm | n | NDCG@10 | R@5 | R@10 | Read coverage | Citation validity (n) | Answer accuracy |",
+        "| 分组 | 方案 | 题数 | NDCG@10 | R@5 | R@10 | 原页覆盖率 | 引用有效性（题数） | 回答正确率 |",
         "|---|---|---:|---:|---:|---:|---:|---|---:|",
     ]
     for r in summary:
@@ -300,12 +294,11 @@ def report(config: Config, store: Store, run_id: str) -> dict:
         )
     lines += [
         "",
-        "Groups may overlap when a question uses several modalities/types. The CSV also includes metric "
-        "sample counts, latency and model/tool calls. Detailed traces, errors and provider token usage are in scored.jsonl.",
-        "",
-        "| Comparison | NDCG@10 difference | Read coverage difference | Accuracy difference |",
-        "|---|---:|---:|---:|",
+        "一道题可以属于多个内容类型或问题类型。CSV 包含指标样本量、耗时和模型调用次数；"
+        "逐题检索、回读和用量记录见 scored.jsonl。",
     ]
+    if deltas:
+        lines += ["", "| 方案比较 | NDCG@10 差值 | 原页覆盖率差值 | 正确率差值 |", "|---|---:|---:|---:|"]
     for r in deltas:
         if r["group_type"] == "all":
             lines.append(
@@ -314,8 +307,8 @@ def report(config: Config, store: Store, run_id: str) -> dict:
             )
     lines += [
         "",
-        "Configuration, dataset version and exact index IDs: [manifest.json](manifest.json).",
-        "[Per-question results](scored.jsonl) · [Summary](summary.csv) · [Differences](deltas.csv)",
+        "配置、数据集版本与索引标识见 [manifest.json](manifest.json)。",
+        "[逐题结果](scored.jsonl) · [汇总](summary.csv)" + (" · [方案差值](deltas.csv)" if deltas else ""),
         "",
     ]
     (out / "report.md").write_text("\n".join(lines), encoding="utf-8")

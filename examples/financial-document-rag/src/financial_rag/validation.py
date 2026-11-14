@@ -1,4 +1,4 @@
-"""Local diagnostics and source-specific checks for the financial example."""
+"""Local configuration, data and source checks for the financial example."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import json
 import os
 from pathlib import Path
 
-from .api import ModelAPI, usage_summary
+from financial_rag.indexing.chunking import current_index
+
 from .budget import status
-from .chunking import current_index
 from .common import RagError, digest, read_jsonl, write_json
 from .config import Config
 from .dataset import dataset
@@ -16,7 +16,7 @@ from .storage import Store
 
 
 def doctor(config: Config, store: Store) -> dict:
-    from .parsing import active_parses
+    from financial_rag.document.parsing import active_parses
 
     report = {
         "sqlite": store.db.execute("SELECT sqlite_version()").fetchone()[0],
@@ -118,110 +118,3 @@ def doctor(config: Config, store: Store) -> dict:
     report["budget"] = status(config)
     write_json(store.root / "doctor.json", report)
     return report
-
-
-
-def check_known_pages(config, store):
-    from .enrichment import enrich, enrichment_key, image_input
-    from .sources import Reader, validate_citations
-
-    if not config.validation.ledger:
-        raise RagError("Set the shared validation ledger before this three-page diagnostic.")
-    index = current_index(config, store, "structured")
-    nodes = [n for pid in index["parse_ids"] for n in store.nodes(pid)]
-    empty = [
-        n
-        for n in nodes
-        if n["kind"] == "table"
-        and image_input(n)
-        and any(s["doc_id"] == "jpmorgan_chase_2024" and s["page_number"] in (73, 96) for s in n["sources"])
-    ]
-    if len(empty) != 2:
-        raise RagError("The pinned JPMorgan diagnostic no longer locates exactly two empty tables.")
-    before = {n["id"]: n["raw"] for n in empty}
-    result = {
-        "diagnostic_only": True,
-        "enrichment": enrich(config, store, [n["id"] for n in empty]),
-        "empty_table_readback": [],
-    }
-    for node in empty:
-        reader = Reader(config, store, index)
-        read = reader.read(node_id=node["id"], include_images=True)
-        record = store.cached(enrichment_key(config, node))
-        evidence = reader.public_evidence()
-        result["empty_table_readback"].append(
-            {
-                "node_id": node["id"],
-                "sources": node["sources"],
-                "read": read,
-                "image_evidence": [e["id"] for e in evidence if e["type"] == "image"],
-                "enhancement": record,
-                "raw_unchanged": before[node["id"]] == store.get("nodes", node["id"])["raw"],
-            }
-        )
-    tables = [
-        n
-        for n in nodes
-        if n["kind"] == "table"
-        and any(s["doc_id"] == "morgan_stanley_2024" and s["page_number"] == 101 for s in n["sources"])
-    ]
-    if len(tables) != 3:
-        raise RagError("Expected three Morgan Stanley tables on physical page 101.")
-    key = "known-page-101:" + digest([config.models.vision.identity(), [digest(n) for n in tables]])
-    assessment = store.meta(key)
-    # Source recovery is independently verifiable even when a model review is truncated.
-    reader = Reader(config, store, index)
-    for node in tables:
-        reader.read(node_id=node["id"], include_images=True)
-    if assessment is None:
-        api = ModelAPI(config, store, key)
-        try:
-            answer = api.chat(
-                "vision",
-                [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "Source-only parsing diagnostic. Compare these extracted tables with the original page image. "
-                                "Identify split currency-symbol columns or ambiguous year/column associations. Do not repair or "
-                                'invent values. Return JSON {"observations":"...","requires_original_page":true or false,"citations":["E..."]}. '
-                                "Cite only the supplied original evidence.",
-                            },
-                            *reader.content(),
-                        ],
-                    }
-                ],
-                retry=False,
-            )
-            parsed = json.loads(answer["content"])
-            citations = validate_citations(parsed.get("citations", []), reader.public_evidence())
-            assessment = {
-                "status": "ok",
-                "assessment": parsed,
-                "citation_check": citations,
-                "table_sources": [n["sources"] for n in tables],
-                "trace": reader.trace,
-                "model_message": answer,
-                "usage": usage_summary(store.calls(key)),
-            }
-        except Exception as error:
-            assessment = {"status": "failed", "error": str(error), "usage": usage_summary(store.calls(key))}
-    assessment.update(
-        table_sources=[n["sources"] for n in tables],
-        trace=reader.trace,
-        original_evidence=reader.public_evidence(),
-        readback_status="ok"
-        if reader.images and all(t["status"] == "ok" for t in reader.trace)
-        else "failed",
-    )
-    store.set_meta(key, assessment)
-    result["morgan_stanley_101"] = assessment
-    result["required_readback_checks_passed"] = assessment["readback_status"] == "ok" and all(
-        r["raw_unchanged"] and r["image_evidence"] for r in result["empty_table_readback"]
-    )
-    result["budget"] = status(config)
-    result["failed"] = bool(result["enrichment"]["failed"]) or assessment["status"] != "ok"
-    write_json(store.root / "known-pages-check.json", result)
-    return result

@@ -2,11 +2,11 @@
 from test_five_arm_contract import prepare
 
 from financial_rag.api import ModelAPI
-from financial_rag.bc_restoration import select_supplement
-from financial_rag.chunking import current_index
-from financial_rag.evidence_packet import OriginalCatalog
-from financial_rag.retrieval import Search
-from financial_rag.runner import QuestionRunner
+from financial_rag.indexing.chunking import current_index
+from financial_rag.query.bc_restoration import select_supplement
+from financial_rag.query.evidence_packet import OriginalCatalog
+from financial_rag.query.retrieval import Search
+from financial_rag.query.runner import QuestionRunner
 
 
 def test_a_selection_is_ranked_prefix_without_changing_candidates(configured):
@@ -62,9 +62,7 @@ def test_summary_never_displaces_originals_and_consumes_no_second_embedding(conf
     b.direct('new fictional original protection query',expanded_BC=True)
     count=b.assembly['phases'][0]['evidence_count']
     assert c.reader.public_evidence()[:count]==b.reader.public_evidence()[:count]
-    assert [p['phase'] for p in c.assembly['phases']]==[
-        'anchors_and_related','explicit_relations','local_structure','parent_overview',
-        'associated_sections_and_cross_heading','bound_original_pages']
+    assert [p['phase'] for p in c.assembly['phases']] == ['originals', 'local_context']
 
 
 def test_duplicate_summary_cannot_consume_slot_even_when_highest_score(configured):

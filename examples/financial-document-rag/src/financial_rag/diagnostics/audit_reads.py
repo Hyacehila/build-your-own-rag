@@ -6,7 +6,7 @@ import base64
 
 import pymupdf
 
-from ..sources import Reader, validate_citations
+from financial_rag.query.sources import Reader, validate_citations
 
 
 def check_reads(config, store, indices, details, issues):

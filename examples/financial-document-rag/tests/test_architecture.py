@@ -7,14 +7,14 @@ import pytest
 
 from financial_rag.api import APIError, ModelAPI, embedding_key
 from financial_rag.budget import reserve, status
-from financial_rag.chunking import chunk, current_index, make_chunk, merge_body_peers
 from financial_rag.common import RagError, digest
 from financial_rag.config import Config, Role, load_config
-from financial_rag.facts import fact_content, migrate, normalize_document
-from financial_rag.parsing import active_parses, load_docling, parse_signature, signature_matches
+from financial_rag.document.facts import fact_content, normalize_document
+from financial_rag.document.parsing import active_parses, load_docling, parse_signature, signature_matches
+from financial_rag.indexing.chunking import current_index, make_chunk, merge_body_peers
+from financial_rag.query.retrieval import embed_index
+from financial_rag.query.sources import Reader
 from financial_rag.release_security import secret_scan
-from financial_rag.retrieval import embed_index
-from financial_rag.sources import Reader
 from financial_rag.tokenization import Tokenizer
 
 
@@ -40,21 +40,11 @@ def test_normalization_content_and_relations(local):
     assert fact_content(before) == fact_content(normalized.model_dump(mode="json"))
     assert doc.model_dump(mode="json") == before
     assert normalized.tables[0].parent.cref != "#/body"
-    first = migrate(config, store)
-    assert first["neural_parse_calls"] == 0 and first["foreign_key_errors"] == 0
-    for kind in ("flat", "structured"):
-        chunk(config, store, kind)
-    ids = [current_index(config, store, k)["id"] for k in ("flat", "structured")]
-    migrate(config, store)
-    assert ids == [current_index(config, store, k)["id"] for k in ("flat", "structured")]
-    active = active_parses(config, store, "structured")[0]
-    assert active["raw_parse_id"] == parsed.get("raw_parse_id", parsed["id"])
-    assert active["id"] != active["raw_parse_id"]
     assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
 
 
 def test_content_layer_projection_has_its_own_fact_version(local, monkeypatch):
-    from financial_rag import facts
+    from financial_rag.document import facts
 
     config, store = local
     doc = store.meta("dataset")["documents"][0]
@@ -251,8 +241,8 @@ def test_exact_dimensions_and_thinking_tool_roundtrip(local):
 
 def test_shared_ceiling_includes_retries_and_env_is_private(local, monkeypatch, tmp_path):
     config, store = local
-    config.validation.ledger = tmp_path / "shared.sqlite"
-    config.validation.deepseek_request_limit = 2
+    config.budget.ledger = tmp_path / "shared.sqlite"
+    config.budget.request_limit = 2
     config.models.chat = Role(base_url="https://api.example.org", model="test", retries=1)
     monkeypatch.setattr("financial_rag.api.time.sleep", lambda _: None)
     calls = []

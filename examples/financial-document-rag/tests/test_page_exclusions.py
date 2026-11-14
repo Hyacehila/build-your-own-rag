@@ -12,8 +12,8 @@ from docling_core.types.doc import (
 )
 
 from financial_rag.common import RagError
-from financial_rag.page_exclusions import exclude_pages
-from financial_rag.parsing import docling_nodes
+from financial_rag.document.page_exclusions import exclude_pages
+from financial_rag.document.parsing import docling_nodes
 
 
 def provenance(page, text):

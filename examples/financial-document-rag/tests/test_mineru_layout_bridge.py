@@ -2,9 +2,9 @@ import json
 import zipfile
 
 from financial_rag.common import read_json, sha256, write_json
-from financial_rag.mineru_bridge import html_table_data
-from financial_rag.mineru_layout_bridge import convert_document, infer_header_rows
-from financial_rag.mineru_packets import prepare_document
+from financial_rag.document.mineru_bridge import html_table_data
+from financial_rag.document.mineru_layout_bridge import convert_document, infer_header_rows
+from financial_rag.document.mineru_packets import prepare_document
 
 
 def test_header_inference_preserves_negative_values_and_multicolumn_years():

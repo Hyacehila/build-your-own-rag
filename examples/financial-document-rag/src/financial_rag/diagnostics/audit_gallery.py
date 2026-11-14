@@ -54,32 +54,6 @@ def pick_samples(details, pages, tables):
         for row in rows:
             if row["native_token_recovery"] is not None and row["native_token_recovery"] < 0.9:
                 add(doc["doc_id"], row["page_number"], "文本层词项重合低于 90% 的诊断页，不等于解析失败")
-    known = {
-        "jpmorgan_chase_2024": {
-            11: "并排表格及标题路径",
-            15: "跨页正文前半段",
-            16: "跨页正文后半段",
-            42: "金额及脚注对照",
-            73: "空表对应原始组织架构图",
-            96: "第二个空表图像回退",
-        },
-        "morgan_stanley_2024": {101: "已知货币符号与列对齐问题"},
-        "bank_of_america_2024": {60: "字符范围异常及双栏正文拼接", 191: "Series B 完整条款的解析与切片定位"},
-        "citigroup_2024": {
-            152: "跨页字符范围异常的前页",
-            153: "跨页字符范围异常的后页",
-            157: "第二组跨页字符范围异常",
-            158: "第二组跨页字符范围异常的后页",
-            679: "长段拆片的来源精度",
-            680: "长段拆片的来源精度",
-        },
-        "goldman_sachs_2024": {504: "短尾片的来源精度", 537: "长段拆片的来源精度", 557: "长段拆片的来源精度"},
-    }
-    for doc_id, pp in known.items():
-        if doc_id in by_doc:
-            for p, why in pp.items():
-                if any(row["page_number"] == p for row in by_doc[doc_id]):
-                    add(doc_id, p, why)
     return [{"doc_id": d, "page_number": p, "reasons": why} for (d, p), why in sorted(selected.items())]
 
 

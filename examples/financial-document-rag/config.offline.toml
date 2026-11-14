@@ -1,5 +1,4 @@
-# Local checks without configured provider endpoints or credentials.
-# Data downloads still require network access and the prepared inputs described in OPERATIONS.md.
+# 用于不配置模型服务和密钥的本地检查；数据下载仍需要网络。
 work_dir = ".local/offline"
 
 [retrieval]

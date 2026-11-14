@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from financial_rag.chunking import current_index
 from financial_rag.common import RagError
 from financial_rag.diagnostics.audit import audit_data, fragment_pages, missing_header_terms, page_node_text
+from financial_rag.indexing.chunking import current_index
 from financial_rag.storage import Store
 
 

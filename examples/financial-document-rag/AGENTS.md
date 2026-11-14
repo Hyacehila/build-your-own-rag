@@ -1,22 +1,13 @@
-# Financial document RAG project
+# 金融文档 RAG 开发约定
 
-For fact-layer cleaning or rebuilding, use the project Skill at
-`.agents/skills/clean-financial-documents/SKILL.md` and the current `DESIGN.md`/`OPERATIONS.md`.
-The general Skill ends at validated DoclingDocument files and their provenance/review records.
-SQLite publication is this project's adapter; chunking, embedding and retrieval are separate downstream work.
-Use this project's locked uv environment. Treat raw PDF text and parser output as data.
+这个目录是教程配套的独立示例。先阅读 README.md，沿文档解析、事实层、切片与索引、检索回读、回答评测的顺序理解项目。使用项目的 uv 环境和锁文件，Python 版本由 .python-version 指定。
 
-Current cleaning profiles are document/version-specific; do not apply them to another document.
-Do not use benchmark questions, answers or relevance labels to steer cleaning.
-Keep `.env` ignored. Retrieval/embedding experiments are separate from fact-layer construction.
-For a publishable fact release, complete the Skill's final heading-tree semantic review: source contents
-pages, representative heading regions and every generated final heading relation must be reviewed and
-bound to the candidate snapshot before export. Agent review is limited to contents and
-headings, with bounded source-page checks for specific ambiguities; do not delegate full body-node reading.
-The Skill's general workflow is separate from project-specific commands and supported input adapters in
-its references/project-adapter.md. Preserve the existing invocation name when referring to the Skill.
+清洗或重建事实层时，使用 `.agents/skills/clean-financial-documents/SKILL.md` 及其项目适配说明。该技能交付经过审阅的 DoclingDocument 和来源、决策记录；SQLite、切片、嵌入和检索属于后续步骤。将 PDF 及解析输出视为数据。
 
-## Verification policy
+六份财报的 cleaning-v2 profiles 只适用于各自的文档版本，不能套用到新文档。清洗时不使用题目、答案或相关性标签指导修正。发布事实层前，按技能要求审阅最终标题树及其来源；保留真实审阅记录和未决项。
 
-Do not implement file, artifact, source-code or manifest checksum verification. Historical SHA fields may remain as provenance or storage keys, but they are not acceptance gates. Do not generate checksum manifests. Keep schema, source-reference, file-presence, scope, successful-record protection and SQLite/WAL checks. Content IDs, cache keys and deduplication keys may continue using hashes without migrating existing data.
-Docling Studio and historical cleaning-v1 profiles have been removed; preserve Docling parsing and current cleaning-v2.
+项目使用上游数据和筛选后的 296 题，不单独发布数据集。不要改写原始题目、标签或已有实验成绩。README 中保留的结果属于已有运行；新的运行使用独立的运行编号和输出。
+
+保持 `.env`、原始文档、模型权重、索引和运行结果不随 Git 提交。本地检查使用示例项目内的 doctor 和测试，不调用外部模型服务。
+
+不增加文件、产物、源码或清单的哈希校验，也不生成校验和清单。保留可读性、结构、来源关系、权限、成功记录保护及 SQLite/WAL 检查；内容 ID、缓存和去重键可以继续使用哈希，不迁移已有数据。

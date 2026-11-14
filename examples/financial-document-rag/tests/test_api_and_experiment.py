@@ -6,13 +6,13 @@ import math
 import pytest
 
 from financial_rag.api import APIError, ModelAPI, embedding_key, usage_summary
-from financial_rag.chunking import chunk, current_index
 from financial_rag.common import RagError
 from financial_rag.config import Role
-from financial_rag.enrichment import enrich
 from financial_rag.evaluation import evaluate, report, retrieval_metrics
-from financial_rag.retrieval import Search, embed_index, page_ranking
-from financial_rag.runner import run
+from financial_rag.indexing.chunking import chunk, current_index
+from financial_rag.indexing.enrichment import enrich
+from financial_rag.query.retrieval import Search, embed_index, page_ranking
+from financial_rag.query.runner import run
 
 
 def test_api_cache_reuse_and_invalidation(configured):

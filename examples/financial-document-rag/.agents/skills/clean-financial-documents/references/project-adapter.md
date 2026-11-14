@@ -1,6 +1,6 @@
 # 金融 RAG 项目适配（可选）
 
-仅在 examples/financial-document-rag 项目执行时读本页，先核对 AGENTS.md、DESIGN.md、OPERATIONS.md 和源码。通用 Skill 交付到 DoclingDocument；这里说明本项目如何实现这些步骤。SQLite 是现有程序的工作存储，不是移植 Skill 的前提。
+仅在 examples/financial-document-rag 项目执行时读本页，先核对 AGENTS.md、README.md 和源码。通用 Skill 交付到 DoclingDocument；这里说明本项目如何实现这些步骤。SQLite 是现有程序的工作存储，不是移植 Skill 的前提。
 
 ## 工具、步骤和实现位置
 
@@ -8,7 +8,7 @@
 |---|---|---|
 | PDF 预检与初始解析 | parsing.py、diagnostics/parsing_quality.py、PyMuPDF、Docling | 初始 CLI 依赖项目输入清单，不能直接声称支持任意 PDF 路径 |
 | 导航排除与标题样式/结构重放 | page_exclusions.py、cleaning_profiles.py、outline.py | 当前清洗从既有全量快照排除导航；解析前分段排除路线需另行适配页映射 |
-| 本地小样诊断 | parse-sample、parsing_guards.py | 按具体缺陷选择后端、单元格匹配或 OCR；不必重跑全本 |
+| 本地小样诊断 | `finance-rag diagnose parse-sample`、parsing_guards.py | 按具体缺陷选择后端、单元格匹配或 OCR；不必重跑全本 |
 | MinerU 问题页包 | mineru_cloud.py / mineru_packets.py | 两个入口配置不同，执行前核对请求 manifest 和预算 |
 | 外部格式转换及资产修复 | mineru_layout_bridge.py、table_repairs.py、asset_roles.py | 固定支持的 layout schema；不是任意 MinerU 版本的通用适配器 |
 | 候选 DoclingDocument 构建 | cleaning.py | 复用原始/云端缓存，保留替换和拒绝记录 |
@@ -54,8 +54,10 @@ confirmed_wrong_parent_remaining 在通过时为空；uncertain_exceptions 明�
 
 ## 项目执行入口与下游边界
 
-已准备输入与 profile 后，使用 cleaning build 构建候选，使用 cleaning check --no-chunks 检查事实。结合 cleaning_audit 的机器诊断，再执行 final_outline packets → 实际目录/标题审阅 → accept → verify。必须显式指定各命令的 output/root/reviews，避免默认值指向已有发布；当前操作入口见项目根目录 OPERATIONS.md。
+已准备输入与 profile 后，使用 `python -m financial_rag.document.cleaning build` 构建候选，使用同一模块的 `check --no-chunks` 检查事实。结合 `financial_rag.document.cleaning_audit` 的机器诊断，再执行 `financial_rag.document.final_outline` 的 packets → 实际目录/标题审阅 → accept → verify。必须显式指定各命令的 output/root/reviews，避免默认值指向已有发布；项目运行入口见 README.md。
 
 本项目额外用 SQLite 存储快照、节点、决策和回执，并提供 cleaning export/restore；这是可选的工程封装。其他项目可以直接读写普通 DoclingDocument JSON 与配套记录，不必复刻数据库。
 
-正式切片、混合检索与嵌入是另一个任务，设计与操作入口分别在项目根目录 DESIGN.md 和 OPERATIONS.md。它消费已验收的文档及显式祖先关系，不是本 Skill 的最后一步。诊断切片可作为后续检查，但不作为 PDF 清洗完成的前置条件。现有 Skill 文本是一套执行指导，不应宣称新文档的任意格式接入、自动 Agent 调度和每项验收都已被代码完整实现。
+正式切片、混合检索与嵌入是另一个任务，设计与操作入口见项目 README.md。它消费已验收的文档及显式祖先关系，不是本 Skill 的最后一步。诊断切片可作为后续检查，但不作为 PDF 清洗完成的前置条件。现有 Skill 文本是一套执行指导，不应宣称新文档的任意格式接入、自动 Agent 调度和每项验收都已被代码完整实现。
+
+本示例若要将已验收结果用于已有题集，可以在准备好题集的工作目录中运行 `finance-rag attach-facts --source <清洗输出目录>`，再重建结构化索引。入口检查审阅记录、文档及页面关系，保留既有题目和运行记录；具体步骤见项目 README。
