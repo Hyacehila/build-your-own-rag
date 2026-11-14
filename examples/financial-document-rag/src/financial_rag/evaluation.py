@@ -81,8 +81,6 @@ def _judge(config: Config, store: Store, row: dict, label: dict) -> dict:
             validate,
         )
         data = json.loads(message["content"])
-        if not isinstance(data.get("correct"), bool) or not isinstance(data.get("reason"), str):
-            raise ValueError("Judge must return a boolean correct and a string reason.")
         result = {
             "status": "scored",
             "correct": data["correct"],
