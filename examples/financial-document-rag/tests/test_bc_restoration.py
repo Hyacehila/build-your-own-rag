@@ -1,14 +1,17 @@
+from types import SimpleNamespace
+
 import pytest
 
 from financial_rag.indexing.chunking import current_index
 from financial_rag.query.bc_restoration import (
  assemble_restored,
  base_coverage,
+ reference_targets,
  select_coverage,
  select_spans,
 )
 from financial_rag.query.evidence_packet import OriginalCatalog
-from financial_rag.query.structural_expansion import StructuralReader
+from financial_rag.query.structural_expansion import StructuralReader, Structure
 
 
 def span(node='n',start=0,end=10,version='v'):
@@ -47,8 +50,8 @@ def test_b_c_same_base_sources_identical_and_regular_pages_without_gaps(configur
     a = assemble_restored(r1, hits, base, cat)
     assemble_restored(r2, hits, base, cat)
     assert r1.public_evidence() == r2.public_evidence()
-    assert a["contract"] == "BC-local-context-v1"
-    assert [phase["phase"] for phase in a["phases"]] == ["originals", "local_context"]
+    assert a["contract"] == "BC-reference-context-v2"
+    assert [phase["phase"] for phase in a["phases"]] == ["originals", "references", "local_context"]
     assert r1.images  # The table is tied to the actual source page.
     assert r1.text_used <= 25000 and len(r1.images) <= 8
     assert c.query.text_tokens == 40000 and r1.config.query.text_tokens == 25000
@@ -100,7 +103,7 @@ def test_runner_restoration_only_B_C_and_RRF20(configured):
                     1 / (20 + entry[k]) for k in ["sparse_rank", "dense_rank"] if entry[k] is not None
                 )
                 assert entry["rrf_score"] == pytest.approx(expected)
-            assert r["fixed_assembly"]["contract"] == "BC-local-context-v1"
+            assert r["fixed_assembly"]["contract"] == "BC-reference-context-v2"
         else:
             assert all("coverage_selection" not in t for t in searches)
     d = next(r for r in rows if r["arm"] == "D")
@@ -111,8 +114,72 @@ def test_runner_restoration_only_B_C_and_RRF20(configured):
 
     assert evaluate(c, store, "restoration-fixture")["pending"] == 0
     assert all(
-        r["fixed_assembly"]["contract"] == "BC-local-context-v1" for r in rows if r["arm"] in ("B", "C")
+        r["fixed_assembly"]["contract"] == "BC-reference-context-v2" for r in rows if r["arm"] in ("B", "C")
     )
+
+
+def test_reference_targets_require_unique_scoped_original_and_map_caption_to_table():
+    def node(nid, kind, text, section, parent, order, parse="p", related=()):
+        return {"id": nid, "ref": nid, "kind": kind, "text": text, "section_id": section,
+                "parent_id": parent, "reading_order": order, "parse_id": parse, "related_refs": list(related),
+                "sources": [{"doc_version": parse, "page_index": 0}]}
+
+    items = [
+        node("root", "section_header", "Report", "root", None, 0),
+        node("s1", "section_header", "One", "s1", "root", 1),
+        node("anchor", "text", "See Table 9 and Figure 3 and Table 10.", "s1", "s1", 2),
+        node("s2", "section_header", "Two", "s2", "root", 3),
+        node("table", "table", "Revenue 2024", "s2", "s2", 4, related=["caption"]),
+        node("caption", "caption", "Table 9: Revenue", "s2", "s2", 5),
+        node("figure1", "picture", "Figure 3", "s2", "s2", 6),
+        node("figure2", "picture", "Figure 3", "s2", "s2", 7),
+        node("other_root", "section_header", "Other", "other_root", None, 8),
+        node("other_section", "section_header", "Other section", "other_section", "other_root", 9),
+        node("outside", "table", "Table 10", "other_section", "other_section", 10),
+        node("foreign_root", "section_header", "Foreign", "foreign_root", None, 0, parse="other"),
+        node("foreign_section", "section_header", "Foreign section", "foreign_section", "foreign_root", 1, parse="other"),
+        node("foreign", "table", "Table 9", "foreign_section", "foreign_section", 2, parse="other"),
+    ]
+    nodes = {n["id"]: n for n in items}
+    catalog = SimpleNamespace(nodes=nodes, by_ref={(n["parse_id"], n["ref"]): n for n in items})
+    structure = Structure(catalog, SimpleNamespace(count=lambda text: len(text.split())))
+    targets, resolved, gaps = reference_targets(structure, ["anchor"])
+    assert targets == ["table"]
+    assert resolved == [{"anchor": "anchor", "reference": ["table", "9"], "target": "table"}]
+    assert [(gap["reference"], gap["reason"]) for gap in gaps] == [
+        (["figure", "3"], "reference_ambiguous"), (["table", "10"], "reference_unresolved")
+    ]
+
+
+def test_b_and_c_read_unique_reference_before_local_context(configured):
+    from copy import deepcopy
+
+    from financial_rag.common import canonical
+
+    c, store, _ = configured
+    base = current_index(c, store, "structured")
+    catalog = OriginalCatalog(store, base)
+    hit = next(x for x in catalog.chunks.values() if x["kind"] == "text")
+    anchor = deepcopy(catalog.nodes[hit["node_ids"][0]])
+    table = deepcopy(next(n for n in catalog.nodes.values() if n["kind"] == "table" and n["parse_id"] == anchor["parse_id"]))
+    for nid, parent, order in [("reference-root", None, 10000), ("reference-s1", "reference-root", 10001),
+                               ("reference-s2", "reference-root", 10003)]:
+        heading = {**anchor, "id": nid, "ref": nid, "kind": "section_header", "text": nid,
+                   "section_id": nid, "parent_id": parent, "reading_order": order, "related_refs": []}
+        store.db.execute("INSERT INTO nodes(id, parse_id, ref, payload) VALUES (?, ?, ?, ?)",
+                         (nid, heading["parse_id"], nid, canonical(heading)))
+    anchor.update(text="Please see Table 9.", section_id="reference-s1", parent_id="reference-s1", reading_order=10002)
+    table.update(text="Table 9\nRevenue: 42", section_id="reference-s2", parent_id="reference-s2", reading_order=10004,
+                 related_refs=[])
+    for node in (anchor, table):
+        store.db.execute("UPDATE nodes SET payload=? WHERE id=?", (canonical(node), node["id"]))
+    catalog = OriginalCatalog(store, base)
+    reader = StructuralReader(c, store, base)
+    result = assemble_restored(reader, [hit], base, catalog)
+    assert result["references"] == [{"anchor": anchor["id"], "reference": ["table", "9"], "target": table["id"]}]
+    assert table["id"] in result["events"][1]["selected_node_ids"]
+    assert any("Revenue: 42" in evidence.get("text", "") for evidence in reader.public_evidence())
+    assert result["events"][1]["new_evidence"]
 
 
 def test_b_and_c_use_configured_retrieval_limits(configured):

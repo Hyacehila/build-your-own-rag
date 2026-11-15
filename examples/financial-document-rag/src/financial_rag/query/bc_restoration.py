@@ -1,12 +1,14 @@
 """B/C coverage selection and bounded original-context reading."""
 
+import re
 from collections import defaultdict
 
 from financial_rag.common import RagError
-from financial_rag.document.facts import ASSETS
+from financial_rag.document.facts import ASSETS, BODY_KINDS, HEADINGS
 from financial_rag.query.structural_expansion import Structure, read_nodes
 
-POLICY = {"version": "BC-local-context-v1", "context_radius": 8}
+POLICY = {"version": "BC-reference-context-v2", "context_radius": 8}
+REFERENCE = re.compile(r"\b(table|figure|note|section|appendix)\s+([0-9]+(?:\.[0-9]+)*[a-z]?|[ivxlcdm]+|[a-z])\b", re.I)
 
 def subtract_interval(start, end, covered):
     """Exact half-open interval subtraction; no similarity threshold."""
@@ -165,8 +167,78 @@ def select_supplement(hits, limit, catalog, index, primary):
 
 
 
+def reference_targets(structure, anchors):
+    """Resolve references in hit text against unique targets in sibling sections."""
+    nodes = structure.nodes
+    references = {
+        nid: list(dict.fromkeys((a.casefold(), b.casefold()) for a, b in REFERENCE.findall(nodes[nid].get("text", ""))))
+        for nid in anchors if nodes[nid]["kind"] in BODY_KINDS
+    }
+    references = {nid: refs for nid, refs in references.items() if refs}
+    if not references:
+        return [], [], []
+
+    def heading_parent(nid):
+        node = nodes[nid]
+        section = nid if node["kind"] in HEADINGS else node.get("section_id")
+        if section not in nodes or nodes[section]["kind"] not in HEADINGS:
+            return None
+        parse = node["parse_id"]
+        parent = nodes[section].get("parent_id")
+        seen = set()
+        while parent in nodes:
+            if parent in seen or nodes[parent]["parse_id"] != parse:
+                raise RagError("Invalid source heading ancestry")
+            seen.add(parent)
+            if nodes[parent]["kind"] in HEADINGS:
+                return parent
+            parent = nodes[parent].get("parent_id")
+        return None
+
+    index = getattr(structure.catalog, "_reference_index", None)
+    if index is None:
+        # Captions refer to their owning assets through the asset's explicit links.
+        owners = defaultdict(set)
+        for node in nodes.values():
+            if node["kind"] in ASSETS and node.get("sources"):
+                for ref in node.get("related_refs", []):
+                    related = structure.by_ref.get((node["parse_id"], ref))
+                    if related and related["kind"] == "caption":
+                        owners[related["id"]].add(node["id"])
+
+        index = defaultdict(set)
+        for nid, node in nodes.items():
+            if node["kind"] not in HEADINGS | ASSETS | {"caption"}:
+                continue
+            parent = heading_parent(nid)
+            if parent is None:
+                continue
+            targets = owners.get(nid) or ({nid} if node.get("sources") or node["kind"] in HEADINGS else set())
+            for a, b in REFERENCE.findall(node.get("text", "").split("\n", 1)[0]):
+                index[(node["parse_id"], parent, a.casefold(), b.casefold())].update(targets)
+        structure.catalog._reference_index = index
+
+    selected, resolved, gaps = [], [], []
+    for nid, refs in references.items():
+        parent = heading_parent(nid)
+        for kind, number in refs:
+            candidates = sorted(index.get((nodes[nid]["parse_id"], parent, kind, number), ()))
+            if len(candidates) != 1:
+                gaps.append({"node_id": nid, "reference": [kind, number],
+                             "reason": "reference_ambiguous" if candidates else "reference_unresolved",
+                             "candidates": candidates})
+                continue
+            target = candidates[0]
+            resolved.append({"anchor": nid, "reference": [kind, number], "target": target})
+            if nodes[target]["kind"] in HEADINGS:
+                selected.extend(structure.select([target], radius=POLICY["context_radius"]))
+            else:
+                selected.append(target)
+    return list(dict.fromkeys(selected)), resolved, gaps
+
+
 def assemble_restored(reader, hits, retrieval_index, catalog):
-    """Read original hits first, then a bounded window in the same section."""
+    """Read original hits, uniquely referenced targets and bounded local context."""
     structure = Structure(catalog, reader.tokenizer)
     reader.structure_nodes = structure.nodes
     reader.config = reader.config.model_copy(deep=True)
@@ -185,10 +257,13 @@ def assemble_restored(reader, hits, retrieval_index, catalog):
     first, missing_first = structure.related(primary)
     supplement, missing_supplement = structure.related([nid for nid in anchors if nid not in first])
     first.extend(nid for nid in supplement if nid not in first)
+    targets, references, reference_gaps = reference_targets(structure, anchors)
+    referenced, missing_referenced = structure.related(targets)
+    referenced = [nid for nid in referenced if nid not in first]
     nearby, missing_nearby = structure.related(structure.select(anchors, radius=POLICY["context_radius"]))
-    nearby = [nid for nid in nearby if nid not in first]
+    nearby = [nid for nid in nearby if nid not in first and nid not in referenced]
     phases, events, unread = [], [], []
-    for name, ids in (("originals", first), ("local_context", nearby)):
+    for name, ids in (("originals", first), ("references", referenced), ("local_context", nearby)):
         before = set(reader.evidence)
         used = reader.text_used
         result = read_nodes(reader, structure, ids, include_images=True)
@@ -208,10 +283,11 @@ def assemble_restored(reader, hits, retrieval_index, catalog):
         "anchor_node_ids": anchors,
         "protected_original_node_ids": primary,
         "resolved_groups": groups,
-        "selected_node_ids": list(dict.fromkeys(first + nearby)),
+        "selected_node_ids": list(dict.fromkeys(first + referenced + nearby)),
+        "references": references,
         "phases": phases,
         "events": events,
-        "structural_gaps": missing_first + missing_supplement + missing_nearby,
+        "structural_gaps": missing_first + missing_supplement + reference_gaps + missing_referenced + missing_nearby,
         "unread_ranges": unread,
         "truncated_evidence_ids": [e["id"] for e in reader.evidence.values() if e.get("truncated")],
         "original_index_id": reader.index["id"],

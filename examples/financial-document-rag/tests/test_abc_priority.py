@@ -62,7 +62,7 @@ def test_summary_never_displaces_originals_and_consumes_no_second_embedding(conf
     b.direct('new fictional original protection query',expanded_BC=True)
     count=b.assembly['phases'][0]['evidence_count']
     assert c.reader.public_evidence()[:count]==b.reader.public_evidence()[:count]
-    assert [p['phase'] for p in c.assembly['phases']] == ['originals', 'local_context']
+    assert [p['phase'] for p in c.assembly['phases']] == ['originals', 'references', 'local_context']
 
 
 def test_duplicate_summary_cannot_consume_slot_even_when_highest_score(configured):
