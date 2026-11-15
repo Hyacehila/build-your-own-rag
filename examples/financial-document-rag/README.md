@@ -68,7 +68,7 @@ financial-document-rag/
 
 运行后还会在本地生成 `.venv/`、`.env`、`.local/` 和 `model_weights/`，分别用于虚拟环境、密钥配置、工作区及运行结果、模型权重；这些本地文件和目录不随 Git 提交。
 
-文档清洗由仓库根目录的独立 [clean-financial-documents Skill](../../.agents/skills/clean-financial-documents/SKILL.md) 负责。这是一个单独的用于提高 Docling 输出结果质量的 Skill，在复杂文档的解析效果上它自带的 OCR 模型弱于 MinerU 的表现，这个 Skill 用于一定程度上缓解这个问题，在计算资源充足时也可以直接用 MinerU 解析，只使用 `docling-core` 提供的能力即可，配置一个单独的转换器从 MinerU 的解析结果转换为 Docling Document。
+文档清洗和审阅由仓库根目录的独立 [clean-financial-documents Skill](../../.agents/skills/clean-financial-documents/SKILL.md) 负责。
 
 ## 数据集来源
 
@@ -86,7 +86,7 @@ financial-document-rag/
 
 这批财报主要有可用的文字层，默认使用 CPU、关闭 OCR 并启用较精细的表格识别；扫描件或文字层受损的页面可能需要 OCR。解析质量还取决于版面：多栏阅读顺序、跨页正文、合并表头和图片区域都可能出错，因此这里保留原始解析快照，并使用独立 Skill 诊断、清洗和审阅。
 
-Docling 的解析并非在每种版面上都理想。遇到漏表、表格错列或正文顺序混乱时，可由独立清洗 Skill 诊断和比较本地候选；必要时使用 MinerU 对具体页面生成另一份结构化候选，再对照原页判断是否采纳。MinerU 是可选云端服务，可能上传所选 PDF 页面并产生费用，默认运行流程只使用本地 Docling。但在相关测试的结果上，MinerU 对于复杂或需要较多视觉理解的版面有着显著更好的解析效果，比 Docling 提供 OCR 模型更好用。
+Docling 的解析并非在每种版面上都理想。遇到漏表、表格错列或正文顺序混乱时，可由独立清洗 Skill 诊断和比较本地候选；必要时使用 MinerU 对具体页面生成另一份结构化候选，再对照原页判断是否采纳。例如，[JPMorgan Chase 财报的清洗记录](profiles/cleaning-v2/jpmorgan_chase_2024.json)记载了 Docling 将部分图示解析为空表格，而 MinerU 将其识别为图片的情况。MinerU 是可选云端服务，可能上传所选 PDF 页面并产生费用；默认运行流程使用本地 Docling。
 
 ## 切片与检索入口
 
@@ -106,11 +106,9 @@ Docling 的解析并非在每种版面上都理想。遇到漏表、表格错列
 
 示例用 SQLite FTS5 做关键词检索，用 `sqlite-vec` 做向量检索，再以 RRF 合并两路排名。关键词检索适合财报中的公司名、年份和术语，向量检索有助于匹配不同表述；两路的候选数、融合参数和最终返回数都可以在 [config.toml](config.toml) 中调整。
 
-B 先按排名读取命中的结构化原文及其关联图注、脚注，再读取同章节的邻近节点，重复覆盖的原文不会反复占用候选位置。C 保留 B 的原文入口，再补充指向其他原文的摘要命中。表格或图片可以关联原始页面图像，便于模型结合文字阅读。启用图片回读时，回答模型也需要支持图片输入。
+B 先按排名读取命中的结构化原文及其关联图注、脚注，再基于文档的阅读顺序扩展同章节的邻近节点，重复覆盖的原文不会反复占用候选位置。C 保留 B 的原文入口，再补充指向其他原文的摘要命中。表格或图片可以关联原始页面图像，便于模型结合文字阅读。启用图片回读时，回答模型也需要支持图片输入。
 
-B/C 还会识别命中正文中的 “Table 9”“Figure 3”等引用，在同一文档的同级章节范围内查找目标；只有找到唯一匹配时才回读，并记录未找到或存在歧义的引用。引用目标通过原始结构和来源定位，受到相同的文本与图片预算约束；邻近节点扩展仍限于同一章节。需要更远范围的搜索或阅读时，可以由 D 继续搜索并回读来源关联的页面。
-
-已有结果中的 B/C 使用过更广的多阶段回读，还包括父章节概览、跨标题邻近内容和符合条件时补读原页文字。当前代码只恢复了正文引用识别，未恢复这些扩展，因此已有成绩不代表当前实现重新运行后的结果。
+B/C 还会识别命中正文中的 “Table 9”“Figure 3”等引用，在同一文档的同级章节范围内查找目标，只有找到唯一匹配时才回读。引用目标通过原始结构和来源定位，受到相同的文本与图片预算约束，这也是 Docling 的结构化索引带来的优势，可以更好的自动扩展这样的引用信息。邻近节点扩展仍限于同一章节，需要更远范围的自主重新查询搜索或阅读时，可以由 D 继续搜索并回读来源关联的页面。
 
 D 使用结构化原文索引：先将问题整理成检索查询和待回答项，保存首次检索与阅读快照；随后程序自动扩展原文，再由 Agent 视情况继续搜索、回读上下文或查看原页。pre-D 直接使用同一份自动扩展前的快照回答， pre-D 与 D 的差异主要体现了Agent 主动探索扩展带来的收益。这个探索过程设计了简易的上下文管理，在即将超限时进行自动压缩。
 
@@ -120,7 +118,7 @@ D 使用结构化原文索引：先将问题整理成检索查询和待回答项
 
 指标计算、模型评分和报告生成见 [evaluation.py](src/financial_rag/evaluation.py)。
 
-评测同时看检索和回答：NDCG@10、Recall@5、Recall@10 使用上游相关页面标注衡量初始检索，原页覆盖率统计实际读取的证据覆盖了哪些标注页；引用有效性检查引用是否指向已读取的证据。回答正确率由评分模型对照参考答案判断，逐题结果和理由都会保存。引用有效并不自动代表回答正确，模型评分也可能出错，因此有必要抽查原文和逐题记录。
+评测同时看检索和回答：NDCG@10、Recall@5、Recall@10 使用上游相关页面标注衡量初始检索。Recall 看前几个结果覆盖了多少相关页面，NDCG 还考虑相关页面的排序。原页覆盖率统计实际读取的证据覆盖了哪些标注页；引用有效性检查引用是否指向已读取的证据。回答正确率由评分模型对照参考答案判断，逐题结果和理由都会保存。
 
 ## 环境与配置
 
@@ -133,11 +131,7 @@ uv run --locked --offline --no-sync finance-rag --help
 
 首次安装需要下载依赖；Docling 解析需要模型权重和计算资源，默认使用 CPU。`--extra ocr` 安装可选 OCR 依赖；默认财报解析配置关闭 OCR。首次使用 `tiktoken` 时也需要取得其编码文件。
 
-将 [.env.example](.env.example) 复制为本机 `.env`（已有文件可直接编辑），填写 `FINANCIAL_RAG_BASE_URL`、`NEW_API_KEY` 和 `DASHSCOPE_API_KEY`。网关地址包含 API 前缀，例如 `https://your-gateway.example/v1`。默认配置使用该网关进行回答、图像描述和评分，使用 DashScope 进行向量化；请在 [config.toml](config.toml) 中按实际服务提供的模型 ID、地址和参数调整。下载数据和本地解析不需要模型服务密钥。
-
-运行 D 方案前，按实际模型设置 `query.context_window_tokens` 和回答模型的 `max_tokens`。程序使用配置的 tokenizer 估算文本和图片请求大小，并为输出预留空间；这个估算不等于服务商的实际计费或精确 token 数。向量化、摘要、回答和评分会调用模型服务，可能产生费用。
-
-配置校验、token 估算和模型服务调用分别由 [config.py](src/financial_rag/config.py)、[tokenization.py](src/financial_rag/tokenization.py) 和 [api.py](src/financial_rag/api.py) 实现；可选预算逻辑位于 [budget.py](src/financial_rag/budget.py)。
+将 [.env.example](.env.example) 复制为 `.env`，填写网关地址 `FINANCIAL_RAG_BASE_URL`（包含 `/v1` 等 API 前缀）、网关密钥 `NEW_API_KEY` 和向量服务密钥 `DASHSCOPE_API_KEY`。在 [config.toml](config.toml) 中按实际服务调整模型 ID、地址和参数；运行 D 方案还需设置 `query.context_window_tokens` 和 `models.chat.request_params.max_tokens`。
 
 阅读和检索的主要参数位于 `query` 与 `retrieval` 配置段：
 
@@ -150,87 +144,83 @@ uv run --locked --offline --no-sync finance-rag --help
 | `exploration_calls` | `24`，范围 1–100 | D 的探索阶段模型调用数，包含首次问题整理；结束时还会留一次最终回答机会 |
 | `agent_total_images`、`agent_request_images` | `16`、`8`，范围均为 0–100 | D 总共可读取的页面图像数，以及单次请求中最多携带的图像数 |
 
-如需限制模型服务的调用次数，可以在配置中增加一套可选预算：
-
-```toml
-[budget]
-ledger = ".local/model-budget.sqlite"
-batch = "example-1"
-request_limit = 1000
-token_limit = 1000000
-unknown_usage_limit = 10
-```
-
-预算默认关闭；启用时必须设置 `ledger` 和 `request_limit`。同一个账本和批次统计向量化、文本、视觉和评分的所有 HTTP 尝试，包括重试；相同批次不能中途更改限额。`token_limit` 可省略，它依据服务商返回的用量在请求结束后累计，因此单次或并发请求可能越过该值；没有用量的请求会计入未知用量。MinerU 使用独立的服务，不计入这套模型调用预算。`doctor` 可以查看当前预算状态。
 
 ## 运行示例
 
-以下步骤先以未经清洗的解析结果运行一题，再展示可选清洗和完整方案比较。也可以在结构化解析后、首次切片前完成清洗与接入，然后从接入后的切片步骤继续。
+以下命令在 `examples/financial-document-rag/` 目录下执行。先按[环境与配置](#环境与配置)安装依赖并填写模型服务配置。
 
-| 阶段 | 输入与主要命令 | 输出 | 是否必需及模型服务 |
-| --- | --- | --- | --- |
-| 数据与权重 | `download`、`download-models` | 财报、题集、标注和 Docling 权重 | 必需；需要下载，不调用问答模型服务 |
-| 解析与可选清洗 | `parse`；独立 Skill 可选清洗、审阅后用 `parse --documents` 导入 | 平面或结构化事实，及可选的审阅事实层 | 解析必需；清洗可选，本地默认流程不调用模型服务；MinerU 云端诊断另计 |
-| 切片与索引 | `chunk`、`embed`；C 还需要 `enrich` | 检索切片、向量，以及 C 所需摘要 | 所选方案的索引必需；向量化和摘要调用模型服务 |
-| 回答与评测 | `run`、`evaluate`、`report` | 回答、来源、逐题评分和汇总报告 | 回答调用模型服务；评分调用 judge 模型 |
+### 1. 准备数据并构建索引
 
-### 1. 准备数据和模型
+下载六份财报、296 道题及其标注和 Docling 模型权重，再解析文档、切片并建立向量索引：
 
 ```powershell
 uv run --locked --no-sync finance-rag download
 uv run --locked --no-sync finance-rag download-models
+
+uv run --locked --no-sync finance-rag parse --parser all
+
+uv run --locked --no-sync finance-rag chunk --index flat
+uv run --locked --no-sync finance-rag chunk --index structured
+uv run --locked --no-sync finance-rag enrich
+uv run --locked --no-sync finance-rag chunk --index enriched
+
+uv run --locked --no-sync finance-rag embed --index all
 ```
 
-`download` 下载固定版本的数据，并按上述清单生成 296 题及原始标注；`download-models` 将 Docling 权重下载到 `model_weights/docling/`。这两步需要访问上游，但不调用问答模型服务。
+`flat` 索引用于 A，`structured` 用于 B、pre-D、D，`enriched` 用于 C。`enrich` 为正文、表格和图片生成摘要，需要文本与视觉模型；`embed` 调用向量模型。这些步骤需要处理完整数据，需要消耗较多时间并产生模型调用费用。
 
-### 2. 解析、建索引并运行一题
+### 2. 运行并评测
 
-下面使用 B 方案检索结构化原文，运行题集中的第一题：
+先让五组方案各回答一题，检查配置和调用链：
+
+```powershell
+uv run --locked --no-sync finance-rag run --run smoke --arms A B C D pre-D --limit 1
+uv run --locked --no-sync finance-rag evaluate --run smoke
+uv run --locked --no-sync finance-rag report --run smoke
+```
+
+`--limit 1` 限制回答的题数，pre-D 使用同一次 D 运行的首次阅读快照，需要与 D 一起运行。
+
+确认流程后，使用新的运行编号评测全部 296 题：
+
+```powershell
+uv run --locked --no-sync finance-rag run --run full --arms A B C D pre-D
+uv run --locked --no-sync finance-rag evaluate --run full
+uv run --locked --no-sync finance-rag report --run full
+```
+
+结果位于 `.local/workspace/runs/<运行编号>/`：`results.jsonl` 和 `scored.jsonl` 保存逐题回答与评分，`summary.csv` 和 `report.md` 汇总结果。重复使用相同运行编号会复用已完成记录；更换题目、方案、配置或检索回读代码后应使用新编号。指定题目和重试失败记录等选项见 `finance-rag run --help`。
+
+<details>
+<summary>可选：只运行 B 方案体验一题</summary>
+
+如果暂时不需要五组比较，完成上面的 `download` 和 `download-models` 后，可以只构建结构化索引并运行 B：
 
 ```powershell
 uv run --locked --no-sync finance-rag parse --parser structured
 uv run --locked --no-sync finance-rag chunk --index structured
 uv run --locked --no-sync finance-rag embed --index structured
-uv run --locked --no-sync finance-rag run --run demo --arms B --limit 1
-uv run --locked --no-sync finance-rag evaluate --run demo
-uv run --locked --no-sync finance-rag report --run demo
+uv run --locked --no-sync finance-rag run --run demo-b --arms B --limit 1
+uv run --locked --no-sync finance-rag evaluate --run demo-b
+uv run --locked --no-sync finance-rag report --run demo-b
 ```
 
-结果写入 `.local/workspace/runs/demo/`：`results.jsonl` 包含回答及来源，`scored.jsonl` 包含逐题评分，`summary.csv` 和 `report.md` 汇总评测结果。评分需要配置 judge 模型。可以用 `--query-id <题目ID>` 指定题目，多次传入以选择多题；`--limit` 选择题集前 N 题。
+此路线仍会解析全部六份财报，但不需要生成 C 的摘要或构建平面、增强索引。
 
-保留相同参数并重复使用运行编号会沿用已完成记录；需要重试失败题目时添加 `--retry-errors`。每个方案的每道题在同一运行编号下最多尝试 4 次（含首次），达到上限后会跳过；如需再次尝试，先排查失败原因，再用新的运行编号重新运行所选题目。更换题目、方案、配置或检索回读代码后也要使用新的运行编号，避免复用旧流程的答案。
+</details>
 
 ### 3. 可选：使用清洗并审阅后的文档
 
-如果需要修正标题结构、目录页或局部表格，让 Agent 按仓库根目录的 [clean-financial-documents Skill](../../.agents/skills/clean-financial-documents/SKILL.md) 在独立工作目录处理 PDF。Skill 输出普通 DoclingDocument 文件、来源和实际审阅记录；它不需要本项目的 SQLite 工作区。[profiles/cleaning-v2/](profiles/cleaning-v2/) 保存这六份财报的既有清洗决策，只适用于各自的文档和解析版本；使用前要核对页面与节点引用，不能套用到新文档。
+如果需要修正标题结构、目录页或局部表格，让 Agent 使用仓库根目录的 [clean-financial-documents Skill](../../.agents/skills/clean-financial-documents/SKILL.md) 处理 PDF，并按[交付契约](../../.agents/skills/clean-financial-documents/references/document-delivery.md)生成覆盖全部题集文档的清单。清单中的相对路径以清单所在目录为基准。[profiles/cleaning-v2/](profiles/cleaning-v2/) 保存这六份财报的既有清洗决策。
 
-完成清洗及最终标题树审阅后，按 Skill 的[交付契约](../../.agents/skills/clean-financial-documents/references/document-delivery.md)生成 `manifest.json`，每份文档包含 `doc_id`、`pdf`、`document` 和 `review`；路径以清单所在目录为基准。清单必须覆盖题集的全部文档，PDF 必须与题集原文一致。以下示例假设交付清单位于 `.local/reviewed/manifest.json`：
-
-```powershell
-uv run --locked --no-sync finance-rag parse --parser structured --documents .local/reviewed/manifest.json
-uv run --locked --no-sync finance-rag chunk --index structured
-uv run --locked --no-sync finance-rag embed --index structured
-```
-
-导入会检查文件、文档标识、原文 PDF、物理页映射、DoclingDocument 结构和审阅记录，并将相对路径引用的图片嵌入工作区快照，避免交付目录移动后失效；不会修改原 PDF、题目、标注或已有运行记录。结构化事实改变后需重建相关索引；若已构建增强索引，还要重新运行 `enrich` 和 `chunk --index enriched`。使用新的运行编号评测新的事实层。旧版 SQLite 清洗发布包不能直接接入；可由 Skill 的通用只读提取工具按实际数据库结构取出快照和审阅材料，经核对后整理为文件交付。
-### 4. 比较五组方案
-
-在结构化索引准备完成后，再构建平面索引和增强索引：
+假设清单位于 `.local/reviewed/manifest.json`，将第 1 步中的 `parse --parser all` 替换为：
 
 ```powershell
 uv run --locked --no-sync finance-rag parse --parser flat
-uv run --locked --no-sync finance-rag chunk --index flat
-uv run --locked --no-sync finance-rag enrich
-uv run --locked --no-sync finance-rag chunk --index enriched
-uv run --locked --no-sync finance-rag embed --index all
-uv run --locked --no-sync finance-rag run --run comparison --arms A B C D pre-D --limit 1
-uv run --locked --no-sync finance-rag evaluate --run comparison
-uv run --locked --no-sync finance-rag report --run comparison
+uv run --locked --no-sync finance-rag parse --parser structured --documents .local/reviewed/manifest.json
 ```
 
-`enrich` 会为正文及图表生成摘要，需要文本和视觉模型。这里先用一题检查流程；去掉 `--limit 1` 后会运行完整的 296 题。pre-D 使用同一次 D 运行的首次阅读快照，因此需要与 D 一起运行。
-
-处理自己的文档还需要准备文档清单、原始解析和对应的清洗决策；当前 `download` 入口针对本数据集。
+随后继续第 1 步的切片、摘要与向量化命令。若先前已建索引，导入清洗文档后需重新构建相关索引，并使用新运行编号评测。
 
 ## 本地检查
 
@@ -239,13 +229,11 @@ uv run --locked --offline --no-sync finance-rag --config config.offline.toml doc
 uv run --locked --offline --no-sync python -B -m pytest -m "not docling" -q -p no:cacheprovider
 ```
 
-`doctor` 使用 [config.offline.toml](config.offline.toml) 检查本地配置、SQLite 和已准备的数据及索引，不调用模型服务，并在对应工作目录生成 `doctor.json`。[tests/](tests/) 包含离线测试和集成测试；真实 PDF 与本地 Docling 权重的集成测试使用 `docling` 标记，需要另外提供测试材料。
+`doctor` 使用 [config.offline.toml](config.offline.toml) 检查本地配置、SQLite 和已准备的数据及索引，不调用模型服务，并在对应工作目录生成 `doctor.json`。[tests/](tests/) 包含离线测试和集成测试，真实 PDF 与本地 Docling 权重的集成测试使用 `docling` 标记。
 
 项目数据与来源审计入口可通过 `finance-rag diagnose --help` 查看；文档解析诊断和可选的 MinerU 处理见独立清洗 Skill。
 
-原始财报、模型权重、索引、运行结果和真实密钥保存在本地，不随 Git 提交。
-
-## 实验方案与结果
+## 实验结果
 
 五组方案的检索与阅读方式见[项目如何工作](#项目如何工作)；检索参数见[环境与配置](#环境与配置)。
 
