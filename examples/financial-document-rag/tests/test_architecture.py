@@ -9,7 +9,6 @@ from financial_rag.api import APIError, ModelAPI, embedding_key
 from financial_rag.budget import reserve, status
 from financial_rag.common import RagError, digest
 from financial_rag.config import Config, Role, load_config
-from financial_rag.document.facts import fact_content, normalize_document
 from financial_rag.document.parsing import active_parses, load_docling, parse_signature, signature_matches
 from financial_rag.indexing.chunking import current_index, make_chunk, merge_body_peers
 from financial_rag.query.retrieval import embed_index
@@ -18,46 +17,35 @@ from financial_rag.release_security import secret_scan
 from financial_rag.tokenization import Tokenizer
 
 
-def test_normalization_content_and_relations(local):
+def test_structured_parse_keeps_the_original_docling_snapshot(local):
     config, store = local
-    parsed = active_parses(config, store, "structured")[0]
-    original = load_docling(parsed)
-    # Flatten an originally known tree while preserving existing heading levels.
-    doc = original.model_copy(deep=True)
-    from docling_core.types.doc import RefItem
+    doc = store.meta("dataset")["documents"][0]
+    raw_id = store.meta("rawparse:structured:" + doc["id"])
+    assert store.meta("parse:structured:" + doc["id"]) == raw_id
+    assert active_parses(config, store, "structured")[0]["id"] == raw_id
+    assert load_docling(store.get("parses", raw_id)).validate_tree(
+        load_docling(store.get("parses", raw_id)).body
+    )
 
-    order = [
-        item
-        for item, _ in doc.iterate_items(with_groups=True, traverse_pictures=True)
-        if item.self_ref != "#/body"
-    ]
-    doc.body.children = [RefItem(cref=i.self_ref) for i in order]
-    for item in order:
-        item.parent = RefItem(cref="#/body")
-        item.children = []
-    before = copy.deepcopy(doc.model_dump(mode="json"))
-    normalized, _ = normalize_document(doc)
-    assert fact_content(before) == fact_content(normalized.model_dump(mode="json"))
-    assert doc.model_dump(mode="json") == before
-    assert normalized.tables[0].parent.cref != "#/body"
-    assert not store.db.execute("PRAGMA foreign_key_check").fetchall()
-
-
-def test_content_layer_projection_has_its_own_fact_version(local, monkeypatch):
-    from financial_rag.document import facts
+def test_parse_does_not_reuse_legacy_normalized_snapshot(local, monkeypatch):
+    from financial_rag.document.parsing import parse
 
     config, store = local
     doc = store.meta("dataset")["documents"][0]
-    raw = store.get("parses", store.meta("rawparse:structured:" + doc["id"]))
-    old_contract = {key: value for key, value in facts.NORMALIZATION.items() if key != "projection"}
-    with monkeypatch.context() as temporary:
-        temporary.setattr(facts, "NORMALIZATION", old_contract)
-        old = facts.normalized_parse(config, store, raw, doc)
-    old_nodes = store.nodes(old["id"])
-    current = facts.normalized_parse(config, store, raw, doc)
-    assert current["id"] != old["id"]
-    assert store.nodes(old["id"]) == old_nodes
-    assert store.meta("parse:structured:" + doc["id"]) == current["id"]
+    key = "parse:structured:" + doc["id"]
+    original_id = store.meta(key)
+    original = store.get("parses", original_id)
+    old = {**original, "id": "legacy-normalized", "normalization": {"contract": "old"}}
+    store.put("parses", old["id"], old)
+    store.set_meta(key, old["id"])
+    def no_reparse(_):
+        raise AssertionError("A valid raw snapshot should be reused")
+
+    monkeypatch.setattr("financial_rag.document.parsing._converter", no_reparse)
+    result = parse(config, store, "structured")
+    assert result["cached"] == [doc["doc_id"]] and not result["failed"]
+    assert store.meta(key) == original_id
+    assert store.get("parses", old["id"])["normalization"] == old["normalization"]
 
 
 def test_parse_identity_ignores_models_keys_and_directory(tmp_path, monkeypatch):

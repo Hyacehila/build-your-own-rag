@@ -14,14 +14,11 @@ from docling_core.types.doc import (
     TextItem,
 )
 
-from financial_rag.common import RagError, digest, write_json
+from financial_rag.common import RagError, write_json
 from financial_rag.config import Config, Tokens
-from financial_rag.diagnostics.parsing_quality import inspect_snapshot
 from financial_rag.document.parsing import (
-    active_parses,
     docling_nodes,
     load_docling,
-    parse_sample,
     parse_signature,
 )
 from financial_rag.document.parsing_guards import GuardedReadingOrderModel, merge_rejection, order_page_zones
@@ -180,48 +177,3 @@ def test_parser_and_chunk_options_change_only_their_own_identity():
     config.chunking.source_scope = "fragment"
     assert chunk_signature(config) != legacy_chunk
     assert parse_signature(config, "structured") == legacy_parse
-
-
-def test_quality_flags_removed_table_number_and_bad_span(local):
-    config, store = local
-    parsed = active_parses(config, store, "structured")[0]
-    snapshot = load_docling(parsed).model_dump(mode="json")
-    original = digest(snapshot)
-    cell = next(c for c in snapshot["tables"][0]["data"]["table_cells"] if c["text"] == "9001")
-    cell["text"] = ""
-    item = next(t for t in snapshot["texts"] if t.get("prov"))
-    item["prov"][0]["charspan"] = [0, len(item["orig"]) + 2]
-    modified = digest(snapshot)
-    doc = store.meta("dataset")["documents"][0]
-    quality = inspect_snapshot(snapshot, doc["pdf_path"])
-    assert quality["counts"]["invalid_original_charspan"] == 1
-    assert quality["counts"]["table_region_numbers_not_assigned"] >= 1
-    assert digest(snapshot) == modified != original
-
-
-def test_sample_cache_presence_and_no_database_mutation(local, monkeypatch):
-    from docling.datamodel.base_models import InputFormat
-
-    from financial_rag.document import parsing
-
-    config, store = local
-    parsed = active_parses(config, store, "structured")[0]
-    doc = load_docling(parsed)
-    calls = []
-
-    def convert(*args, **kwargs):
-        calls.append(kwargs)
-        return NS(document=doc, pages=[], errors=[], status=NS(value="success"))
-
-    converter = NS(format_to_options={InputFormat.PDF: NS(pipeline_options=NS())}, convert=convert)
-    monkeypatch.setattr(parsing, "_converter", lambda _: converter)
-    before = store.db.total_changes
-    first = parse_sample(config, store, "test-source", 1, 3)
-    assert not first["failed"] and len(calls) == 1
-    second = parse_sample(config, store, "test-source", 1, 3)
-    assert second["cached"] and len(calls) == 1
-    from pathlib import Path
-
-    Path(first["nodes"]).unlink()
-    parse_sample(config, store, "test-source", 1, 3)
-    assert len(calls) == 2 and store.db.total_changes == before

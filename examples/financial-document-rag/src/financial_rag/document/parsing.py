@@ -239,14 +239,7 @@ def _converter(config: Config):
 
 def parse(config: Config, store: Store, kind: str) -> dict:
     if kind == "structured" and store.meta("fact_release"):
-        artifacts = active_parses(config, store, kind)
-        return {
-            "kind": kind,
-            "completed": [],
-            "failed": [],
-            "cached": [p["doc_version"] for p in artifacts],
-            "note": "Reusing accepted facts; rebuild through the cleaning pipeline to change them.",
-        }
+        raise RagError("This workspace contains a legacy fact release; use a new workspace.")
     manifest = dataset(store, verify_pdfs=True)
     signature = parse_signature(config, kind)
     converter = None
@@ -256,12 +249,31 @@ def parse(config: Config, store: Store, kind: str) -> dict:
         old = store.meta(key)
         if old:
             artifact = store.get("parses", old)
+            if kind == "structured" and artifact.get("normalization"):
+                raw_id = store.meta(f"rawparse:structured:{doc['id']}")
+                if raw_id:
+                    try:
+                        raw = store.get("parses", raw_id)
+                    except RagError:
+                        raw = None
+                    if (raw and raw.get("status") == "success" and not raw.get("fixture")
+                            and signature_matches(raw.get("semantic_signature", raw.get("signature", {})), signature)):
+                        try:
+                            load_docling(raw)
+                        except (RagError, ValueError, OSError, KeyError):
+                            pass
+                        else:
+                            store.set_meta(key, raw_id)
+                            result["cached"].append(doc["doc_id"])
+                            continue
             if (
                 signature_matches(
                     artifact.get("semantic_signature", artifact.get("signature", {})), signature
                 )
                 and artifact["status"] == "success"
                 and not artifact.get("fixture")
+                and not artifact.get("external_document")
+                and not artifact.get("normalization")
             ):
                 snapshot = Path(artifact["snapshot"])
                 readable = snapshot.is_file()
@@ -330,10 +342,7 @@ def parse(config: Config, store: Store, kind: str) -> dict:
         if parsed["status"] == "success":
             store.save_snapshot(Path(parsed["snapshot"]), parsed["snapshot_sha256"])
             if kind == "structured":
-                from financial_rag.document.facts import normalized_parse
-
                 store.set_meta(f"rawparse:structured:{doc['id']}", pid)
-                normalized_parse(config, store, parsed, doc)
         result["completed" if parsed["status"] == "success" else "failed"].append(doc["doc_id"])
     write_json(config.work_dir / f"parse-{kind}.json", result)
     return result
@@ -345,23 +354,15 @@ def active_parses(config: Config, store: Store, kind: str) -> list[dict]:
     signature = parse_signature(config, kind)
     release = store.meta("fact_release") if kind == "structured" else None
     if release:
-        from financial_rag.document.final_outline import verify_stored_acceptance
-
-        verify_stored_acceptance(store)
-        accepted_ids = {row["parse_id"] for row in release["documents"]}
+        raise RagError("This workspace contains a legacy fact release; use a new workspace.")
     for doc in manifest["documents"]:
         pid = store.meta(f"parse:{kind}:{doc['id']}")
         if not pid:
             raise RagError(f"Run parse --parser {kind} for {doc['filename']} first.")
         parsed = store.get("parses", pid)
-        if release:
-            if (
-                pid not in accepted_ids
-                or parsed["doc_version"] != doc["id"]
-                or parsed.get("cleaning_contract") != release["contract"]
-            ):
-                raise RagError("Active structured parse is not part of the accepted fact release.")
-        elif not signature_matches(
+        if parsed["doc_version"] != doc["id"]:
+            raise RagError("Active parse belongs to another document.")
+        elif not parsed.get("external_document") and not signature_matches(
             parsed.get("semantic_signature", parsed.get("signature", {})), signature
         ):
             raise RagError(
@@ -382,100 +383,3 @@ def load_docling(parsed: dict):
     document = DoclingDocument.model_validate(read_json(Path(parsed["snapshot"])))
     _require_body_layers(document)
     return document
-
-
-def parse_sample(
-    config: Config, store: Store, doc_id: str, start: int, end: int, *, profile="configured", refresh=False
-) -> dict:
-    """Real parser diagnostic on physical pages, never published as a full parse/index."""
-    from collections import Counter
-
-    from docling.datamodel.base_models import InputFormat
-
-    from financial_rag.diagnostics.parsing_quality import QUALITY_CONTRACT, inspect_snapshot
-
-    config = config.model_copy(deep=True)
-    profiles = {
-        "configured": {},
-        "guarded": {"guarded_merges": True},
-        "pdfium": {"backend": "pdfium"},
-        "no-cell-match": {"table_cell_matching": False},
-        "bitmap-ocr": {"ocr": True, "ocr_engine": "rapidocr_torch", "ocr_mode": "default"},
-        "full-ocr": {"ocr": True, "ocr_engine": "rapidocr_torch", "ocr_mode": "full_page"},
-    }
-    if profile not in profiles:
-        raise RagError("Unknown diagnostic parsing profile")
-    for key, value in profiles[profile].items():
-        setattr(config.parsing, key, value)
-
-    manifest = dataset(store, verify_pdfs=True)
-    doc = next((d for d in manifest["documents"] if d["doc_id"] == doc_id), None)
-    if not doc or not 1 <= start <= end <= doc["pages"]:
-        raise RagError("Choose an existing doc ID and an inclusive physical page range within that PDF.")
-    if end - start + 1 > 10:
-        raise RagError("parse-sample is limited to 10 physical pages; split the diagnostic range.")
-    signature = parse_signature(config, "structured")
-    pid = digest(["diagnostic_sample_v2", QUALITY_CONTRACT, doc["id"], start, end, signature])
-    output = config.work_dir / "samples" / pid
-    if not refresh and (output / "report.json").is_file():
-        cached = read_json(output / "report.json")
-        if (
-            not cached["failed"]
-            and all(
-                (output / name).is_file()
-                for name in cached.get("files", ())
-            )
-            and cached.get("files")
-        ):
-            return {**cached, "cached": True}
-    converter = _converter(config)
-    converter.format_to_options[InputFormat.PDF].pipeline_options.generate_parsed_pages = True
-    started = perf_counter()
-    result = converter.convert(Path(doc["pdf_path"]), page_range=(start, end), raises_on_error=False)
-    nodes = docling_nodes(result.document, doc, pid)
-    expected = set(range(start, end + 1))
-    pages = set(result.document.pages)
-    report = {
-        "diagnostic_only": True,
-        "profile": profile,
-        "doc_id": doc_id,
-        "doc_version": doc["id"],
-        "page_range": [start, end],
-        "parsed_pages": sorted(pages),
-        "elapsed_seconds": perf_counter() - started,
-        "status": result.status.value,
-        "errors": [e.model_dump(mode="json") for e in result.errors],
-        "failed_pages": sorted(expected - pages),
-        "node_types": dict(Counter(n["kind"] for n in nodes)),
-        "signature": signature,
-        "snapshot": str(output / "document.json"),
-        "nodes": str(output / "nodes.json"),
-    }
-    report["failed"] = result.status.value != "success" or pages != expected
-    snapshot = result.document.model_dump(mode="json")
-    write_json(output / "document.json", snapshot)
-    write_json(output / "nodes.json", nodes)
-    stages = [
-        {
-            "page_no": page.page_no,
-            "predictions": page.predictions.model_dump(mode="json"),
-            "parsed_page": page.parsed_page.model_dump(mode="json") if page.parsed_page else None,
-        }
-        for page in result.pages
-    ]
-    write_json(output / "stages.json", stages)
-    quality = inspect_snapshot(snapshot, doc["pdf_path"])
-    write_json(output / "quality.json", quality)
-    report["quality_counts"] = quality["counts"]
-    report["needs_quality_review"] = bool(quality["issues"])
-    if config.parsing.guarded_merges:
-        report["reading_order_changes"] = [
-            {
-                "rejected_merges": pipeline.reading_order_model.rejected_merges,
-                "zones": pipeline.reading_order_model.ro_model.zone_changes,
-            }
-            for pipeline in converter.initialized_pipelines.values()
-        ]
-    report["files"] = ["document.json", "nodes.json", "stages.json", "quality.json"]
-    write_json(output / "report.json", report)
-    return report

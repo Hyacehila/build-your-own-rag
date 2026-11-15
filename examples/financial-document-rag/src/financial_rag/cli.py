@@ -17,8 +17,7 @@ from .storage import Store
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Financial document RAG: data preparation, five-arm experiments, and diagnostics.",
-        epilog="Run '<command> --help' for options. Fact releases use 'python -m "
-        "financial_rag.document.cleaning'; retrieval releases use 'python -m financial_rag.indexing.release'.",
+        epilog="Run '<command> --help' for options.",
     )
     parser.add_argument(
         "--config",

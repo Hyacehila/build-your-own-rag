@@ -15,13 +15,11 @@ def register(commands):
     p.set_defaults(handler=inspect)
     p = commands.add_parser("parse", help="Parse PDFs or reuse validated snapshots")
     p.add_argument("--parser", choices=["flat", "structured", "all"], default="all")
+    p.add_argument("--documents", type=Path, help="Manifest of independently reviewed documents")
     p.set_defaults(handler=parse)
     p = commands.add_parser("chunk", help="Build flat, structured or enriched retrieval chunks")
     p.add_argument("--index", choices=["flat", "structured", "enriched", "all"], required=True)
     p.set_defaults(handler=chunk)
-    p = commands.add_parser("attach-facts", help="Use reviewed facts with the prepared benchmark")
-    p.add_argument("--source", type=Path, required=True, help="Reviewed fact workspace")
-    p.set_defaults(handler=attach_facts)
 
 
 def download(args, config, store):
@@ -45,6 +43,14 @@ def inspect(args, config, store):
 def parse(args, config, store):
     from financial_rag.document.parsing import parse
 
+    if args.documents:
+        if args.parser != "structured":
+            from ..common import RagError
+
+            raise RagError("--documents requires --parser structured")
+        from financial_rag.document.imported import import_documents
+
+        return import_documents(config, store, args.documents)
     kinds = ["flat", "structured"] if args.parser == "all" else [args.parser]
     results = [parse(config, store, kind) for kind in kinds]
     return {"results": results, "failed": [f for r in results for f in r["failed"]]}
@@ -55,9 +61,3 @@ def chunk(args, config, store):
 
     kinds = ["flat", "structured", "enriched"] if args.index == "all" else [args.index]
     return {"results": [chunk(config, store, kind) for kind in kinds]}
-
-
-def attach_facts(args, config, store):
-    from financial_rag.indexing.release import attach
-
-    return attach(store, args.source)

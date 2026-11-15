@@ -1,0 +1,24 @@
+[project]
+name = "clean-financial-documents-skill"
+version = "0.1.0"
+description = "Standalone document cleaning tools for the clean-financial-documents skill"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "docling-slim[convert-core,format-pdf,models-local]==2.120.1",
+  "docling-core[chunking-openai]==2.91.0",
+  "docling-parse==7.13.0",
+  "docling-ibm-models==3.14.0",
+  "pymupdf>=1.26,<1.28",
+  "pillow>=10,<13",
+  "httpx>=0.28,<0.29",
+  "lxml>=6.1,<7",
+]
+
+[project.optional-dependencies]
+ocr = ["rapidocr==3.9.2"]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["pytest>=8.3,<9"]

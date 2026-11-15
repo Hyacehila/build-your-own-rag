@@ -1,6 +1,5 @@
 """Opt-in parsing check against the real upstream financial document."""
 
-import json
 import os
 import shutil
 from pathlib import Path
@@ -9,8 +8,7 @@ import pymupdf
 import pytest
 
 from financial_rag.config import Config, Parsing, Tokens
-from financial_rag.document.parsing import parse_sample
-from financial_rag.storage import Store
+from financial_rag.document.parsing import _converter, docling_nodes
 
 
 @pytest.mark.docling
@@ -32,12 +30,9 @@ def test_real_pdf_parser_preserves_table_and_physical_page(tmp_path):
     )
     doc = {"id": "real-report-test", "doc_id": "jpmorgan_chase_2024",
            "filename": pdf_path.name, "pdf_path": str(pdf_path), "pages": pages}
-    with Store(config.work_dir) as store:
-        store.put("documents", doc["id"], doc)
-        store.set_meta("dataset", {"documents": [doc], "synthetic": False})
-        result = parse_sample(config, store, doc["doc_id"], 220, 220)
-        assert not result["failed"]
-        nodes = json.loads(Path(result["nodes"]).read_text(encoding="utf-8"))
-        tables = [node for node in nodes if node["kind"] == "table"]
-        assert any("15,371" in node["text"] and "14,655" in node["text"] for node in tables)
-        assert all(source["page_number"] == 220 for node in nodes for source in node["sources"])
+    result = _converter(config).convert(pdf_path, page_range=(220, 220), raises_on_error=False)
+    assert result.status.value == "success"
+    nodes = docling_nodes(result.document, doc, "integration-test")
+    tables = [node for node in nodes if node["kind"] == "table"]
+    assert any("15,371" in node["text"] and "14,655" in node["text"] for node in tables)
+    assert all(source["page_number"] == 220 for node in nodes for source in node["sources"])

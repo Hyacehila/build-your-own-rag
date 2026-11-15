@@ -1,4 +1,4 @@
-"""Optional diagnostics, source inspection and bounded trial command adapters."""
+"""Dataset diagnostics and source inspection command adapters."""
 
 import base64
 from pathlib import Path
@@ -14,7 +14,7 @@ def register(commands):
     p = commands.add_parser("doctor", help="Check local configuration, storage and source relations")
     p.set_defaults(handler=doctor)
 
-    p = commands.add_parser("diagnose", help="Document quality, repair previews and optional MinerU tools")
+    p = commands.add_parser("diagnose", help="Inspect local data and source quality")
     diagnostics = p.add_subparsers(dest="diagnostic", required=True)
     p = diagnostics.add_parser(
         "audit-data", help="Read-only source, chunk and provenance audit; no model calls"
@@ -22,33 +22,6 @@ def register(commands):
     p.add_argument("--output", type=Path, help="Default: <work_dir>/data-quality-audit")
     p.add_argument("--no-gallery", action="store_true", help="Only full-corpus automated checks")
     p.set_defaults(handler=audit, read_only=True)
-    p = diagnostics.add_parser(
-        "repair-preview", help="Local deterministic repair candidates; no active DB writes"
-    )
-    p.add_argument("--doc-id", action="append", required=True)
-    p.add_argument("--output", type=Path)
-    p.set_defaults(handler=repair_preview, read_only=True)
-    p = diagnostics.add_parser("mineru-prepare", help="Prepare at most eight source-mapped single-page PDFs")
-    p.add_argument("--page", action="append", required=True, help="doc_id:physical_page_number")
-    p.add_argument("--bundle", type=Path, required=True)
-    p.set_defaults(handler=mineru, read_only=True)
-    for name in ("mineru-submit", "mineru-fetch", "mineru-import"):
-        p = diagnostics.add_parser(name, help="Bounded MinerU trial; existing experiment DB stays read-only")
-        p.add_argument("--bundle", type=Path, required=True)
-        p.set_defaults(handler=mineru, read_only=True)
-    p = diagnostics.add_parser("parse-sample", help="Diagnose real Docling parsing on a physical page range")
-    p.add_argument("--doc-id", required=True)
-    p.add_argument("--start-page", type=int, default=1)
-    p.add_argument("--end-page", type=int, default=3)
-    p.add_argument(
-        "--profile",
-        choices=["configured", "guarded", "pdfium", "no-cell-match", "bitmap-ocr", "full-ocr"],
-        default="configured",
-    )
-    p.add_argument(
-        "--refresh", action="store_true", help="Rerun this exact local sample instead of its cache"
-    )
-    p.set_defaults(handler=parse_sample, read_only=True)
 
 
 def audit(args, config, store):
@@ -59,46 +32,6 @@ def audit(args, config, store):
         store,
         (args.output or config.work_dir / "data-quality-audit").resolve(),
         gallery=not args.no_gallery,
-    )
-
-
-def repair_preview(args, config, store):
-    from ..diagnostics.repair_preview import repair_preview
-
-    return repair_preview(
-        config, store, args.doc_id, (args.output or config.work_dir / "repair-preview").resolve()
-    )
-
-
-def mineru(args, config, store):
-    from financial_rag.document.mineru_bridge import import_trial
-    from financial_rag.document.mineru_cloud import fetch_trial, prepare_trial, submit_trial
-
-    bundle = args.bundle.resolve()
-    if args.diagnostic == "mineru-prepare":
-        try:
-            selections = [(value.rsplit(":", 1)[0], int(value.rsplit(":", 1)[1])) for value in args.page]
-        except (ValueError, IndexError) as e:
-            raise RagError("Use --page doc_id:physical_page_number") from e
-        return prepare_trial(store, selections, bundle)
-    if args.diagnostic == "mineru-submit":
-        return submit_trial(bundle)
-    if args.diagnostic == "mineru-fetch":
-        return fetch_trial(bundle)
-    return import_trial(store, bundle)
-
-
-def parse_sample(args, config, store):
-    from financial_rag.document.parsing import parse_sample
-
-    return parse_sample(
-        config,
-        store,
-        args.doc_id,
-        args.start_page,
-        args.end_page,
-        profile=args.profile,
-        refresh=args.refresh,
     )
 
 
